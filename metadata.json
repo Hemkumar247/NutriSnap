@@ -1,0 +1,8 @@
+{
+  "name": "NutriSnap AI",
+  "description": "An AI-powered nutrition assistant that lets users upload a photo of their meal and instantly get calorie estimates, macronutrient breakdowns, healthier alternative suggestions, and daily intake tracking.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
