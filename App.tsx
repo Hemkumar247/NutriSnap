@@ -3,8 +3,8 @@ import { SideMenu } from './components/SideMenu';
 import { ImageUploader } from './components/ImageUploader';
 import { NutritionDisplay } from './components/NutritionDisplay';
 import { DailyTracker } from './components/DailyTracker';
-import { analyzeMeal, getChatResponse } from './services/geminiService';
-import type { AnalysisResult, DailyLogItem, NutritionInfo, ChatMessage, ChatContext, AppView } from './types';
+import { analyzeMeal, analyzeMealFromText, getChatResponse } from './services/geminiService';
+import type { AnalysisResult, DailyLogItem, NutritionInfo, ChatMessage, ChatContext, AppView, MealPlanPreferences, MealPlan, ExploreRecipe } from './types';
 import { Spinner } from './components/Spinner';
 import { ResetIcon, LightbulbIcon, BrandLogoIcon } from './components/IconComponents';
 import { EditLogModal } from './components/EditLogModal';
@@ -16,6 +16,9 @@ import { WeeklyReportModal } from './components/WeeklyReportModal';
 import { MealDetailModal } from './components/MealDetailModal';
 import { soundService } from './services/soundService';
 import { DeepAnalysisPage } from './components/DeepAnalysisPage';
+import { MealPlanGeneratorPage } from './components/MealPlanGeneratorPage';
+import { ExplorePage } from './components/ExplorePage';
+import { SavedRecipesPage } from './components/SavedRecipesPage';
 
 
 type DietMode = 'maintenance' | 'loss' | 'gain';
@@ -29,7 +32,7 @@ const PRESET_GOALS: Record<DietMode, NutritionInfo> = {
 const App: React.FC = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [mealDescription, setMealDescription] = useState<string>('');
+  const [textInput, setTextInput] = useState<string>('');
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [dailyLog, setDailyLog] = useState<DailyLogItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -64,6 +67,13 @@ const App: React.FC = () => {
   // Side Menu State
   const [isMenuCollapsed, setIsMenuCollapsed] = useState<boolean>(true);
   const [activeView, setActiveView] = useState<AppView>('dashboard');
+
+  // Meal Plan State
+  const [mealPlanPreferences, setMealPlanPreferences] = useState<MealPlanPreferences | null>(null);
+  const [mealPlan, setMealPlan] = useState<MealPlan | null>(null);
+
+  // Saved Recipes State
+  const [savedRecipes, setSavedRecipes] = useState<ExploreRecipe[]>([]);
 
 
   // Load data from localStorage on initial render
@@ -106,6 +116,18 @@ const App: React.FC = () => {
         setDailyGoals(JSON.parse(savedGoals));
       }
 
+      // Load Meal Plan Preferences
+      const savedPrefs = localStorage.getItem('nutrisnap_meal_prefs');
+      if (savedPrefs) {
+        setMealPlanPreferences(JSON.parse(savedPrefs));
+      }
+      
+      // Load Saved Recipes
+      const savedRecipesData = localStorage.getItem('nutrisnap_saved_recipes');
+      if (savedRecipesData) {
+        setSavedRecipes(JSON.parse(savedRecipesData));
+      }
+
     } catch (e) {
       console.error("Failed to load data from localStorage", e);
     }
@@ -133,6 +155,24 @@ const App: React.FC = () => {
     }
   }, [waterIntake, waterGoal]);
 
+  useEffect(() => {
+    try {
+      if (mealPlanPreferences) {
+        localStorage.setItem('nutrisnap_meal_prefs', JSON.stringify(mealPlanPreferences));
+      }
+    } catch (e) {
+      console.error("Failed to save meal preferences to localStorage", e);
+    }
+  }, [mealPlanPreferences]);
+
+  useEffect(() => {
+    try {
+        localStorage.setItem('nutrisnap_saved_recipes', JSON.stringify(savedRecipes));
+    } catch (e) {
+        console.error("Failed to save recipes to localStorage", e);
+    }
+  }, [savedRecipes]);
+
 
   const handleImageSelect = (file: File) => {
     setImageFile(file);
@@ -141,16 +181,12 @@ const App: React.FC = () => {
     setError(null);
   };
   
-  const handleMealDescriptionChange = (description: string) => {
-    setMealDescription(description);
-  };
-  
   const handleReset = () => {
     setImageFile(null);
     setImageUrl(null);
     setAnalysis(null);
     setError(null);
-    setMealDescription('');
+    setTextInput('');
     soundService.play('click');
   };
 
@@ -175,19 +211,18 @@ const App: React.FC = () => {
 
   const handleAnalysis = useCallback(async () => {
     if (!imageFile) return;
-
     setIsLoading(true);
     setError(null);
     soundService.play('start');
     try {
-      const result = await analyzeMeal(imageFile, remainingGoals, mealDescription);
+      const result = await analyzeMeal(imageFile, remainingGoals, textInput);
       setAnalysis(result);
       soundService.play('success');
     } catch (err: any) {
       const errorMessage = (err.message || '').toLowerCase();
       if (errorMessage.includes('parse') || errorMessage.includes('json')) {
         setError("The AI had trouble analyzing the meal's photo. This can happen with unusual angles or lighting. Please try again with a clearer picture.");
-      } else if (errorMessage.includes('api key')) { // Catch potential API key issues
+      } else if (errorMessage.includes('api key')) {
         setError("There seems to be a configuration issue. Please contact support.");
       } else {
         setError('An unexpected error occurred during analysis. Please check your connection and try again.');
@@ -196,7 +231,26 @@ const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [imageFile, remainingGoals, mealDescription]);
+  }, [imageFile, textInput, remainingGoals]);
+
+  const handleTextAnalysis = useCallback(async () => {
+    if (!textInput.trim()) return;
+    setIsLoading(true);
+    setError(null);
+    setImageFile(null);
+    setImageUrl(null);
+    soundService.play('start');
+    try {
+      const result = await analyzeMealFromText(textInput, remainingGoals);
+      setAnalysis(result);
+      soundService.play('success');
+    } catch (err: any) {
+      setError('An unexpected error occurred during text analysis. Please try rephrasing your description.');
+      soundService.play('stop');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [textInput, remainingGoals]);
   
   const handleAddLogItem = (item: AnalysisResult, url?: string) => {
     const newItem: DailyLogItem = {
@@ -262,9 +316,6 @@ const App: React.FC = () => {
     setDailyGoals(newGoals);
     localStorage.setItem('nutrisnap_custom_goals', JSON.stringify(newGoals));
     soundService.play('success');
-    // If goals are custom, diet mode might not match a preset.
-    // We could set it to 'maintenance' or a new 'custom' state.
-    // For now, let's just update the goals.
   };
 
   const handleLogWater = (amount: number) => {
@@ -323,13 +374,38 @@ const App: React.FC = () => {
     soundService.play('click');
   }
 
+  const handleSaveRecipe = (recipe: ExploreRecipe) => {
+    setSavedRecipes(prev => {
+        if (prev.some(r => r.id === recipe.id)) return prev;
+        return [...prev, recipe];
+    });
+    soundService.play('success');
+  };
+
+  const handleUnsaveRecipe = (recipeId: string) => {
+      setSavedRecipes(prev => prev.filter(r => r.id !== recipeId));
+      soundService.play('stop');
+  };
+
   const analysisSectionRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (analysis && analysisSectionRef.current) {
-      analysisSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if ((analysis || error || isLoading) && analysisSectionRef.current) {
+        analysisSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [analysis]);
+  }, [analysis, error, isLoading]);
+
+  const showAnalysisView = isLoading || error || analysis;
   
+  const getHeaderTitle = () => {
+    switch(activeView) {
+      case 'dashboard': return 'NutriSnap AI';
+      case 'analysis': return 'Deep Analysis';
+      case 'mealPlan': return 'Meal Plan Generator';
+      case 'explore': return 'Explore Recipes';
+      case 'saved': return 'Saved Recipes';
+      default: return 'NutriSnap AI';
+    }
+  };
 
   return (
     <div className="min-h-screen font-sans">
@@ -356,114 +432,135 @@ const App: React.FC = () => {
             <header className="flex items-center mb-8">
               <BrandLogoIcon className="h-9 w-9 text-cyan-400 mr-3" />
               <h1 className="text-2xl font-bold text-slate-100">
-                {activeView === 'dashboard' ? 'NutriSnap AI' : 'Deep Analysis'}
+                {getHeaderTitle()}
               </h1>
             </header>
 
             {activeView === 'dashboard' && (
               <main className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                   <div className="lg:col-span-2 space-y-8">
-                  {/* Uploader */}
-                  {!imageUrl && <ImageUploader onImageSelect={handleImageSelect} />}
+                    {/* State 1: Uploader */}
+                    {!imageUrl && !showAnalysisView && (
+                        <ImageUploader 
+                            onImageSelect={handleImageSelect} 
+                            onTextSubmit={handleTextAnalysis}
+                            textValue={textInput}
+                            onTextChange={setTextInput}
+                        />
+                    )}
 
-                  {/* Analysis Display */}
-                  {imageUrl && (
-                      <div className="corner-box animate-fade-in" ref={analysisSectionRef}>
-                      <div className="relative">
-                          <img src={imageUrl} alt="Uploaded meal" className="w-full h-auto max-h-[500px] object-contain rounded-lg" />
-                          
-                          {/* Bounding Boxes */}
-                          {analysis && analysis.detectedItems.map((item, index) => {
-                            const [yMin, xMin, yMax, xMax] = item.boundingBox;
-                            return (
-                              <div 
-                                key={index}
-                                className="absolute border-2 border-cyan-400 rounded-md shadow-lg group"
-                                style={{
-                                  top: `${yMin * 100}%`,
-                                  left: `${xMin * 100}%`,
-                                  width: `${(xMax - xMin) * 100}%`,
-                                  height: `${(yMax - yMin) * 100}%`,
-                                }}
-                              >
-                                <div className="absolute -top-7 left-0 bg-cyan-400 text-slate-900 text-xs font-bold px-2 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                                  {item.foodName}: {Math.round(item.nutrition.calories)} kcal
+                    {/* State 2: Image Preview + Optional Description */}
+                    {imageUrl && !showAnalysisView && (
+                        <div className="corner-box animate-fade-in" ref={analysisSectionRef}>
+                            <div className="relative mb-4">
+                                <img src={imageUrl} alt="Selected meal" className="w-full h-auto max-h-[450px] object-contain rounded-lg" />
+                                <button onClick={handleReset} className="absolute top-3 right-3 bg-slate-900/50 backdrop-blur-sm text-slate-200 p-2 rounded-full hover:bg-slate-800 hover:scale-110 transition-all" aria-label="Reset image">
+                                    <ResetIcon className="w-5 h-5" />
+                                </button>
+                            </div>
+                            
+                            <div className="mb-6">
+                                <label htmlFor="mealDescription" className="block text-sm font-medium text-slate-400 mb-2">
+                                    Add a description for more accuracy (optional)
+                                </label>
+                                <textarea
+                                    id="mealDescription"
+                                    value={textInput}
+                                    onChange={(e) => setTextInput(e.target.value)}
+                                    placeholder="e.g., 'The chicken was grilled, not fried. The salad has a light vinaigrette.'"
+                                    className="w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm focus:ring-cyan-400 focus:border-cyan-400 bg-slate-800 text-slate-200 placeholder-slate-500 resize-none"
+                                    rows={3}
+                                />
+                            </div>
+
+                            <div className="text-center">
+                                <button 
+                                    onClick={handleAnalysis}
+                                    className="w-full md:w-auto px-8 py-3 bg-gradient-to-r from-purple-500 to-cyan-400 text-white font-bold rounded-full hover:shadow-lg hover:shadow-cyan-500/20 transition-all text-lg"
+                                >
+                                    Analyze Meal
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* State 3: Loading, Error, or Results */}
+                    {showAnalysisView && (
+                        <div className="corner-box animate-fade-in" ref={analysisSectionRef}>
+                            {isLoading ? (
+                                <div className="flex flex-col items-center justify-center space-y-4 py-12">
+                                    <Spinner />
+                                    <p className="text-slate-300 font-semibold">Analyzing your meal...</p>
                                 </div>
-                              </div>
-                            )
-                          })}
-                          
-                          <button onClick={handleReset} className="absolute top-3 right-3 bg-slate-900/50 backdrop-blur-sm text-slate-200 p-2 rounded-full hover:bg-slate-800 hover:scale-110 transition-all" aria-label="Reset image">
-                              <ResetIcon className="w-5 h-5" />
-                          </button>
-                      </div>
+                            ) : error ? (
+                                <div className="text-center py-8">
+                                    <p className="text-red-400 mb-4 bg-red-900/30 p-3 rounded-lg">{error}</p>
+                                    <button 
+                                        onClick={handleReset} 
+                                        className="px-5 py-2.5 bg-cyan-500 text-white font-semibold rounded-full hover:bg-cyan-600 transition-all"
+                                    >
+                                        Try Again
+                                    </button>
+                                </div>
+                            ) : analysis ? (
+                               <>
+                                {imageUrl ? (
+                                    <div className="relative mb-6">
+                                        <img src={imageUrl} alt="Uploaded meal" className="w-full h-auto max-h-[500px] object-contain rounded-lg" />
+                                        {analysis.detectedItems.map((item, index) => {
+                                          if (!item.boundingBox) return null;
+                                          const [yMin, xMin, yMax, xMax] = item.boundingBox;
+                                          return (
+                                            <div 
+                                              key={index}
+                                              className="absolute border-2 border-cyan-400 rounded-md shadow-lg group"
+                                              style={{
+                                                top: `${yMin * 100}%`,
+                                                left: `${xMin * 100}%`,
+                                                width: `${(xMax - xMin) * 100}%`,
+                                                height: `${(yMax - yMin) * 100}%`,
+                                              }}
+                                            >
+                                              <div className="absolute -top-7 left-0 bg-cyan-400 text-slate-900 text-xs font-bold px-2 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                                {item.foodName}: {Math.round(item.nutrition.calories)} kcal
+                                              </div>
+                                            </div>
+                                          )
+                                        })}
+                                        <button onClick={handleReset} className="absolute top-3 right-3 bg-slate-900/50 backdrop-blur-sm text-slate-200 p-2 rounded-full hover:bg-slate-800 hover:scale-110 transition-all" aria-label="Reset image">
+                                            <ResetIcon className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="text-right mb-4">
+                                         <button onClick={handleReset} className="bg-slate-800/50 text-slate-300 p-2 rounded-full hover:bg-slate-700 hover:scale-105 transition-all" aria-label="New Analysis">
+                                            <ResetIcon className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                )}
 
-                      {/* Meal Description Input */}
-                      {!analysis && !isLoading && (
-                        <div className="mt-4">
-                              <label htmlFor="mealDescription" className="block text-sm font-medium text-slate-400 mb-1">
-                                  Optional: Add a description for better accuracy
-                              </label>
-                              <input
-                                  type="text"
-                                  id="mealDescription"
-                                  value={mealDescription}
-                                  onChange={(e) => handleMealDescriptionChange(e.target.value)}
-                                  placeholder="e.g., 'My lunch with grilled chicken and quinoa'"
-                                  className="w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm focus:ring-cyan-400 focus:border-cyan-400 bg-slate-800 text-slate-200 placeholder-slate-500"
-                              />
-                          </div>
-                      )}
-
-                      {/* Analysis Button & Result */}
-                      {isLoading ? (
-                          <div className="flex flex-col items-center justify-center space-y-4 py-12">
-                              <Spinner />
-                              <p className="text-slate-300 font-semibold">Analyzing your meal...</p>
-                          </div>
-                      ) : error ? (
-                          <div className="text-center py-8">
-                              <p className="text-red-400 mb-4 bg-red-900/30 p-3 rounded-lg">{error}</p>
-                              <button 
-                                  onClick={handleAnalysis} 
-                                  className="px-5 py-2.5 bg-cyan-500 text-white font-semibold rounded-full hover:bg-cyan-600 transition-all"
-                              >
-                                  Try Again
-                              </button>
-                          </div>
-                      ) : analysis ? (
-                          <>
-                          <NutritionDisplay analysis={analysis} />
-                          <div className="mt-6 text-center">
-                              <button 
-                              onClick={() => handleAddLogItem(analysis, imageUrl)}
-                              className="w-full md:w-auto px-8 py-3 bg-gradient-to-r from-purple-500 to-cyan-400 text-white font-bold rounded-full hover:shadow-lg hover:shadow-cyan-500/20 transition-all text-lg"
-                              >
-                              Log This Meal
-                              </button>
-                          </div>
-                          <div className="mt-8">
-                              <h4 className="text-xl font-bold text-slate-200 mb-3 flex items-center">
-                                  <LightbulbIcon className="w-5 h-5 mr-2 text-yellow-300" />
-                                  Healthier Alternatives
-                              </h4>
-                              <ul className="list-disc list-inside space-y-1 text-slate-300 pl-2">
-                                  {analysis.alternatives.map((alt, index) => <li key={index}>{alt}</li>)}
-                              </ul>
-                          </div>
-                          </>
-                      ) : (
-                          <div className="text-center mt-6">
-                              <button 
-                                  onClick={handleAnalysis} 
-                                  className="w-full md:w-auto px-8 py-3 bg-gradient-to-r from-purple-500 to-cyan-400 text-white font-bold rounded-full hover:shadow-lg hover:shadow-cyan-500/20 transition-all text-lg"
-                              >
-                                  Analyze Now
-                              </button>
-                          </div>
-                      )}
-                      </div>
-                  )}
+                                <NutritionDisplay analysis={analysis} />
+                                <div className="mt-6 text-center">
+                                    <button 
+                                    onClick={() => handleAddLogItem(analysis, imageUrl || undefined)}
+                                    className="w-full md:w-auto px-8 py-3 bg-gradient-to-r from-purple-500 to-cyan-400 text-white font-bold rounded-full hover:shadow-lg hover:shadow-cyan-500/20 transition-all text-lg"
+                                    >
+                                    Log This Meal
+                                    </button>
+                                </div>
+                                <div className="mt-8">
+                                    <h4 className="text-xl font-bold text-slate-200 mb-3 flex items-center">
+                                        <LightbulbIcon className="w-5 h-5 mr-2 text-yellow-300" />
+                                        Healthier Alternatives
+                                    </h4>
+                                    <ul className="list-disc list-inside space-y-1 text-slate-300 pl-2">
+                                        {analysis.alternatives.map((alt, index) => <li key={index}>{alt}</li>)}
+                                    </ul>
+                                </div>
+                               </>
+                            ) : null}
+                        </div>
+                    )}
                   </div>
 
                   {/* Right Sidebar - Daily Tracker */}
@@ -492,6 +589,34 @@ const App: React.FC = () => {
 
             {activeView === 'analysis' && (
               <DeepAnalysisPage log={dailyLog} goals={dailyGoals} />
+            )}
+
+            {activeView === 'mealPlan' && (
+              <MealPlanGeneratorPage 
+                preferences={mealPlanPreferences}
+                goals={dailyGoals}
+                onSavePreferences={setMealPlanPreferences}
+                mealPlan={mealPlan}
+                onPlanGenerated={setMealPlan}
+              />
+            )}
+
+            {activeView === 'explore' && (
+                <ExplorePage
+                    log={dailyLog}
+                    preferences={mealPlanPreferences}
+                    savedRecipes={savedRecipes}
+                    onSaveRecipe={handleSaveRecipe}
+                    onUnsaveRecipe={handleUnsaveRecipe}
+                />
+            )}
+
+            {activeView === 'saved' && (
+                <SavedRecipesPage 
+                    recipes={savedRecipes} 
+                    onUnsaveRecipe={handleUnsaveRecipe}
+                    onSaveRecipe={handleSaveRecipe}
+                />
             )}
         </div>
       </div>

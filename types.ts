@@ -1,3 +1,5 @@
+import { LiveServerMessage, LiveSession } from "@google/genai";
+
 export interface NutritionInfo {
   calories: number;
   protein: number;
@@ -10,7 +12,7 @@ export type BoundingBox = [number, number, number, number]; // [y_min, x_min, y_
 export interface DetectedFoodItem {
   foodName: string;
   nutrition: NutritionInfo;
-  boundingBox: BoundingBox;
+  boundingBox?: BoundingBox;
 }
 
 export interface AnalysisResult {
@@ -45,4 +47,52 @@ export interface ChatContext {
   waterGoal: number;
 }
 
-export type AppView = 'dashboard' | 'analysis';
+export interface MealPlanPreferences {
+  favBreakfast: string;
+  favLunch: string;
+  favDinner: string;
+  dislikes: string;
+  isVegetarian: boolean;
+}
+
+export interface Meal {
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
+export interface DailyMealPlan {
+  day: string;
+  meals: {
+    breakfast: Meal;
+    lunch: Meal;
+    dinner: Meal;
+  };
+  dailyTotals: NutritionInfo;
+}
+
+export interface MealPlan {
+  plan: DailyMealPlan[];
+}
+
+// Types for the new Explore feature
+export interface ExploreRecipe {
+  id: string;
+  name: string;
+  description: string;
+  nutrition: NutritionInfo;
+  ingredients: string[];
+  instructions: string[];
+  imageUrl?: string; // Base64 string from image generation model
+  imageIsGenerating?: boolean;
+}
+
+export interface ExploreCategory {
+  categoryTitle: string;
+  recipes: ExploreRecipe[];
+}
+
+
+export type AppView = 'dashboard' | 'analysis' | 'mealPlan' | 'explore' | 'saved';

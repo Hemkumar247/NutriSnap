@@ -1,5 +1,5 @@
 import React from 'react';
-import { HistoryIcon, ChartBarIcon, ChevronDoubleLeftIcon, LayoutGridIcon, TrendingUpIcon } from './IconComponents';
+import { HistoryIcon, ChartBarIcon, ChevronDoubleLeftIcon, LayoutGridIcon, TrendingUpIcon, MealPlanIcon, ExploreIcon, BookmarkIcon } from './IconComponents';
 import { soundService } from '../services/soundService';
 import { AppView } from '../types';
 
@@ -57,6 +57,15 @@ export const SideMenu: React.FC<SideMenuProps> = ({ isCollapsed, activeView, onT
         <nav className="flex flex-col items-center space-y-2 mt-8">
             <NavItem label="Dashboard" onClick={() => onNavClick('dashboard')} isCollapsed={isCollapsed} isActive={activeView === 'dashboard'}>
                 <LayoutGridIcon className="w-6 h-6 flex-shrink-0" />
+            </NavItem>
+             <NavItem label="Meal Plan" onClick={() => onNavClick('mealPlan')} isCollapsed={isCollapsed} isActive={activeView === 'mealPlan'}>
+                <MealPlanIcon className="w-6 h-6 flex-shrink-0" />
+            </NavItem>
+             <NavItem label="Explore Recipes" onClick={() => onNavClick('explore')} isCollapsed={isCollapsed} isActive={activeView === 'explore'}>
+                <ExploreIcon className="w-6 h-6 flex-shrink-0" />
+            </NavItem>
+            <NavItem label="Saved Recipes" onClick={() => onNavClick('saved')} isCollapsed={isCollapsed} isActive={activeView === 'saved'}>
+                <BookmarkIcon className="w-6 h-6 flex-shrink-0" />
             </NavItem>
             <NavItem label="Deep Analysis" onClick={() => onNavClick('analysis')} isCollapsed={isCollapsed} isActive={activeView === 'analysis'}>
                 <TrendingUpIcon className="w-6 h-6 flex-shrink-0" />

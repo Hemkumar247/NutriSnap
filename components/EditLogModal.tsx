@@ -9,7 +9,7 @@ interface EditLogModalProps {
 
 export const EditLogModal: React.FC<EditLogModalProps> = ({ item, onClose, onSave }) => {
   const [foodName, setFoodName] = useState(item.foodName);
-  const [nutrition, setNutrition] = useState<NutritionInfo>(item.nutrition);
+  const [nutrition, setNutrition] = useState<NutritionInfo>(item.nutrition || { calories: 0, protein: 0, carbs: 0, fat: 0 });
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

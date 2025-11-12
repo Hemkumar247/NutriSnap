@@ -1,5 +1,6 @@
 
 
+
 import React, { useMemo, useEffect } from 'react';
 import type { DailyLogItem, NutritionInfo } from '../types';
 import { ResetIcon, CalorieIcon, ProteinIcon, CarbIcon, FatIcon, ChartBarIcon } from './IconComponents';
@@ -86,7 +87,8 @@ export const WeeklyReportModal: React.FC<WeeklyReportModalProps> = ({ isOpen, on
                     <div>
                          <h3 className="text-lg font-semibold text-cyan-300 mb-4">Daily Breakdown vs Goals</h3>
                          <div className="space-y-4">
-                            {Object.entries(weeklyData.dailyTotals).sort(([dateA], [dateB]) => new Date(dateB).getTime() - new Date(dateA).getTime()).map(([dateStr, totals]) => {
+                            {/* FIX: Explicitly type the result of Object.entries to ensure 'totals' is recognized as NutritionInfo. */}
+                            {(Object.entries(weeklyData.dailyTotals) as [string, NutritionInfo][]).sort(([dateA], [dateB]) => new Date(dateB).getTime() - new Date(dateA).getTime()).map(([dateStr, totals]) => {
                                 const date = new Date(dateStr);
                                 const dayLabel = date.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
                                 return (
