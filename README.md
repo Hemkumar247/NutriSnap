@@ -251,6 +251,7 @@ Report bugs or request features in the Issues tab.
 🧑‍💻 Author
 
 Hem Kumar
+
 AI + Full-Stack Developer
 Focused on building real-world AI tools that reduce friction in everyday life.
 
