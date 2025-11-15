@@ -4,7 +4,7 @@ import { ImageUploader } from './components/ImageUploader';
 import { NutritionDisplay } from './components/NutritionDisplay';
 import { DailyTracker } from './components/DailyTracker';
 import { analyzeMeal, analyzeMealFromText, getChatResponse } from './services/geminiService';
-import type { AnalysisResult, DailyLogItem, NutritionInfo, ChatMessage, ChatContext, AppView, MealPlanPreferences, MealPlan, ExploreRecipe } from './types';
+import type { AnalysisResult, DailyLogItem, NutritionInfo, ChatMessage, ChatContext, AppView, MealPlanPreferences, MealPlan, ExploreRecipe, UserProfile, AppSettings } from './types';
 import { Spinner } from './components/Spinner';
 import { ResetIcon, LightbulbIcon, BrandLogoIcon } from './components/IconComponents';
 import { EditLogModal } from './components/EditLogModal';
@@ -19,6 +19,9 @@ import { DeepAnalysisPage } from './components/DeepAnalysisPage';
 import { MealPlanGeneratorPage } from './components/MealPlanGeneratorPage';
 import { ExplorePage } from './components/ExplorePage';
 import { SavedRecipesPage } from './components/SavedRecipesPage';
+import { ProfilePage } from './components/ProfilePage';
+import { SettingsPage } from './components/SettingsPage';
+import { ConfirmationModal } from './components/ConfirmationModal';
 
 
 type DietMode = 'maintenance' | 'loss' | 'gain';
@@ -27,6 +30,20 @@ const PRESET_GOALS: Record<DietMode, NutritionInfo> = {
   maintenance: { calories: 2000, protein: 120, carbs: 250, fat: 65 },
   loss: { calories: 1600, protein: 130, carbs: 150, fat: 55 },
   gain: { calories: 2500, protein: 150, carbs: 300, fat: 80 },
+};
+
+const DEFAULT_PROFILE: UserProfile = {
+  name: 'Hem Kumar',
+  age: 30,
+  gender: 'male',
+  height: 175, // cm
+  weight: 70, // kg
+  activityLevel: 'moderate'
+};
+
+const DEFAULT_SETTINGS: AppSettings = {
+  theme: 'dark',
+  units: 'metric'
 };
 
 const App: React.FC = () => {
@@ -56,13 +73,14 @@ const App: React.FC = () => {
   // Chat state
   const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
-    { role: 'model', content: "Hello! I'm NutriSnap AI. How can I help you with your nutrition today? Ask me about your goals, logged meals, or for meal ideas!" }
+    { role: 'model', content: "Hello! I'm Eat Well. How can I help you with your nutrition today? Ask me about your goals, logged meals, or for meal ideas!" }
   ]);
   const [isChatLoading, setIsChatLoading] = useState<boolean>(false);
   
   // Modal States
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [isReportOpen, setIsReportOpen] = useState<boolean>(false);
+  const [isClearDataConfirmOpen, setIsClearDataConfirmOpen] = useState(false);
   
   // Side Menu State
   const [isMenuCollapsed, setIsMenuCollapsed] = useState<boolean>(true);
@@ -74,6 +92,10 @@ const App: React.FC = () => {
 
   // Saved Recipes State
   const [savedRecipes, setSavedRecipes] = useState<ExploreRecipe[]>([]);
+
+  // Profile & Settings State
+  const [userProfile, setUserProfile] = useState<UserProfile>(DEFAULT_PROFILE);
+  const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
 
 
   // Load data from localStorage on initial render
@@ -128,6 +150,18 @@ const App: React.FC = () => {
         setSavedRecipes(JSON.parse(savedRecipesData));
       }
 
+      // Load Profile
+      const savedProfile = localStorage.getItem('nutrisnap_profile');
+      if (savedProfile) {
+        setUserProfile(JSON.parse(savedProfile));
+      }
+
+      // Load Settings
+      const savedSettings = localStorage.getItem('nutrisnap_settings');
+      if (savedSettings) {
+        setAppSettings(JSON.parse(savedSettings));
+      }
+
     } catch (e) {
       console.error("Failed to load data from localStorage", e);
     }
@@ -172,6 +206,28 @@ const App: React.FC = () => {
         console.error("Failed to save recipes to localStorage", e);
     }
   }, [savedRecipes]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('nutrisnap_profile', JSON.stringify(userProfile));
+    } catch (e) {
+      console.error("Failed to save profile to localStorage", e);
+    }
+  }, [userProfile]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('nutrisnap_settings', JSON.stringify(appSettings));
+      // Apply theme
+      if (appSettings.theme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    } catch (e) {
+      console.error("Failed to save settings to localStorage", e);
+    }
+  }, [appSettings]);
 
 
   const handleImageSelect = (file: File) => {
@@ -387,6 +443,84 @@ const App: React.FC = () => {
       soundService.play('stop');
   };
 
+  const handleUpdateProfile = (profile: UserProfile) => {
+    setUserProfile(profile);
+  };
+  
+  const handleRecalculateGoals = (profile: UserProfile) => {
+    // Mifflin-St Jeor Equation
+    let bmr: number;
+    if (profile.gender === 'male') {
+        bmr = 10 * profile.weight + 6.25 * profile.height - 5 * profile.age + 5;
+    } else { // 'female' or 'other'
+        bmr = 10 * profile.weight + 6.25 * profile.height - 5 * profile.age - 161;
+    }
+
+    const activityMultipliers = {
+        sedentary: 1.2,
+        light: 1.375,
+        moderate: 1.55,
+        very: 1.725
+    };
+
+    const tdee = bmr * activityMultipliers[profile.activityLevel];
+    
+    // Simple macro split: 40% carbs, 30% protein, 30% fat
+    const calories = Math.round(tdee);
+    const protein = Math.round((calories * 0.30) / 4);
+    const carbs = Math.round((calories * 0.40) / 4);
+    const fat = Math.round((calories * 0.30) / 9);
+
+    const newGoals: NutritionInfo = { calories, protein, carbs, fat };
+    handleUpdateGoals(newGoals);
+    alert(`Goals recalculated based on your profile! New daily calorie target: ${calories} kcal.`);
+  };
+
+  const handleUpdateSettings = (settings: AppSettings) => {
+    setAppSettings(settings);
+  };
+  
+  const handleExportData = () => {
+    const dataToExport = {
+      profile: userProfile,
+      settings: appSettings,
+      log: dailyLog,
+      goals: dailyGoals,
+      savedRecipes: savedRecipes,
+      mealPlanPreferences: mealPlanPreferences,
+    };
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `nutrisnap_data_${new Date().toISOString().split('T')[0]}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+    soundService.play('success');
+  };
+
+  const handleClearAllData = () => {
+    // Clear state
+    setDailyLog([]);
+    setWaterIntake(0);
+    setSavedRecipes([]);
+    setMealPlanPreferences(null);
+    setMealPlan(null);
+    setDailyGoals(PRESET_GOALS.maintenance);
+    setDietMode('maintenance');
+    setUserProfile(DEFAULT_PROFILE);
+    setAppSettings(DEFAULT_SETTINGS);
+
+    // Clear localStorage
+    Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('nutrisnap_')) {
+            localStorage.removeItem(key);
+        }
+    });
+
+    setIsClearDataConfirmOpen(false);
+  };
+
   const analysisSectionRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if ((analysis || error || isLoading) && analysisSectionRef.current) {
@@ -398,12 +532,14 @@ const App: React.FC = () => {
   
   const getHeaderTitle = () => {
     switch(activeView) {
-      case 'dashboard': return 'NutriSnap AI';
+      case 'dashboard': return 'Eat Well';
       case 'analysis': return 'Deep Analysis';
       case 'mealPlan': return 'Meal Plan Generator';
       case 'explore': return 'Explore Recipes';
       case 'saved': return 'Saved Recipes';
-      default: return 'NutriSnap AI';
+      case 'profile': return 'User Profile';
+      case 'settings': return 'Settings';
+      default: return 'Eat Well';
     }
   };
 
@@ -425,6 +561,7 @@ const App: React.FC = () => {
             setIsReportOpen(true);
             soundService.play('click');
         }}
+        userName={userProfile.name}
       />
       
       <div className={`transition-all duration-300 ease-in-out ${isMenuCollapsed ? 'pl-20' : 'pl-64'}`}>
@@ -618,6 +755,24 @@ const App: React.FC = () => {
                     onSaveRecipe={handleSaveRecipe}
                 />
             )}
+            
+            {activeView === 'profile' && (
+                <ProfilePage 
+                    profile={userProfile}
+                    settings={appSettings}
+                    onSaveProfile={handleUpdateProfile}
+                    onRecalculateGoals={handleRecalculateGoals}
+                />
+            )}
+            
+            {activeView === 'settings' && (
+                <SettingsPage 
+                    settings={appSettings}
+                    onUpdateSettings={handleUpdateSettings}
+                    onExportData={handleExportData}
+                    onClearData={() => setIsClearDataConfirmOpen(true)}
+                />
+            )}
         </div>
       </div>
 
@@ -654,6 +809,13 @@ const App: React.FC = () => {
           onClose={() => setIsDetailModalOpen(false)}
         />
       )}
+      <ConfirmationModal
+        isOpen={isClearDataConfirmOpen}
+        onClose={() => setIsClearDataConfirmOpen(false)}
+        onConfirm={handleClearAllData}
+        title="Clear All Data?"
+        message="This action is irreversible. All your logged meals, goals, and preferences will be permanently deleted."
+      />
 
       {/* Floating Action Button for Chat */}
       <ChatButton onClick={() => {

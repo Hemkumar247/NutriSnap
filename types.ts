@@ -95,4 +95,18 @@ export interface ExploreCategory {
 }
 
 
-export type AppView = 'dashboard' | 'analysis' | 'mealPlan' | 'explore' | 'saved';
+export interface UserProfile {
+  name: string;
+  age: number;
+  gender: 'male' | 'female' | 'other';
+  height: number; // Stored in cm
+  weight: number; // Stored in kg
+  activityLevel: 'sedentary' | 'light' | 'moderate' | 'very';
+}
+
+export interface AppSettings {
+  theme: 'light' | 'dark';
+  units: 'metric' | 'imperial';
+}
+
+export type AppView = 'dashboard' | 'analysis' | 'mealPlan' | 'explore' | 'saved' | 'profile' | 'settings';

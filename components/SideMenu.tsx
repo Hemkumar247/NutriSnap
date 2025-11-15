@@ -1,5 +1,5 @@
 import React from 'react';
-import { HistoryIcon, ChartBarIcon, ChevronDoubleLeftIcon, LayoutGridIcon, TrendingUpIcon, MealPlanIcon, ExploreIcon, BookmarkIcon } from './IconComponents';
+import { HistoryIcon, ChartBarIcon, ChevronDoubleLeftIcon, LayoutGridIcon, TrendingUpIcon, MealPlanIcon, ExploreIcon, BookmarkIcon, SettingsIcon } from './IconComponents';
 import { soundService } from '../services/soundService';
 import { AppView } from '../types';
 
@@ -10,6 +10,7 @@ interface SideMenuProps {
     onNavClick: (view: AppView) => void;
     onHistoryClick: () => void;
     onReportClick: () => void;
+    userName: string;
 }
 
 const NavItem: React.FC<{ label: string; onClick: () => void; children: React.ReactNode; isCollapsed: boolean; isActive?: boolean; }> = ({ label, onClick, children, isCollapsed, isActive }) => {
@@ -41,7 +42,7 @@ const NavItem: React.FC<{ label: string; onClick: () => void; children: React.Re
 };
 
 
-export const SideMenu: React.FC<SideMenuProps> = ({ isCollapsed, activeView, onToggle, onNavClick, onHistoryClick, onReportClick }) => {
+export const SideMenu: React.FC<SideMenuProps> = ({ isCollapsed, activeView, onToggle, onNavClick, onHistoryClick, onReportClick, userName }) => {
   return (
     <aside className={`fixed top-0 left-0 h-screen bg-slate-900/50 backdrop-blur-lg border-r border-cyan-300/10 z-40 flex flex-col p-2 transition-all duration-300 ease-in-out ${isCollapsed ? 'w-20' : 'w-64'}`}>
         {/* Toggle Button */}
@@ -76,17 +77,23 @@ export const SideMenu: React.FC<SideMenuProps> = ({ isCollapsed, activeView, onT
             <NavItem label="Food History" onClick={onHistoryClick} isCollapsed={isCollapsed}>
                 <HistoryIcon className="w-6 h-6 flex-shrink-0" />
             </NavItem>
+             <NavItem label="Settings" onClick={() => onNavClick('settings')} isCollapsed={isCollapsed} isActive={activeView === 'settings'}>
+                <SettingsIcon className="w-6 h-6 flex-shrink-0" />
+            </NavItem>
         </nav>
         
         {/* User Profile Footer */}
         <div className="mt-auto w-full p-2">
-            <div className={`flex items-center p-2 bg-slate-800/50 rounded-lg overflow-hidden transition-all duration-300`}>
+            <div 
+                onClick={() => onNavClick('profile')}
+                className={`flex items-center p-2 bg-slate-800/50 rounded-lg overflow-hidden transition-all duration-300 cursor-pointer hover:bg-slate-800 ${activeView === 'profile' ? 'ring-2 ring-cyan-400' : ''}`}
+            >
                 <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-purple-600 rounded-full flex items-center justify-center font-bold text-white flex-shrink-0">
-                    HK
+                    {userName.substring(0, 2).toUpperCase()}
                 </div>
                 <div className={`ml-3 transition-opacity duration-200 ${isCollapsed ? 'opacity-0' : 'opacity-100'}`}>
-                    <p className="font-semibold text-sm text-slate-100 whitespace-nowrap">Hem Kumar</p>
-                    <p className="text-xs text-slate-400 whitespace-nowrap cursor-pointer hover:text-cyan-400">Account</p>
+                    <p className="font-semibold text-sm text-slate-100 whitespace-nowrap">{userName}</p>
+                    <p className="text-xs text-slate-400 whitespace-nowrap hover:text-cyan-400">View Profile</p>
                 </div>
             </div>
         </div>
