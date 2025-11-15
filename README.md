@@ -228,35 +228,6 @@ Your water intake
 
 Your saved recipes
 
-🧩 Key Files
-
-services/geminiService.ts – all AI calls
-
-components/ImageUploader.tsx – photo input module
-
-components/NutritionDisplay.tsx – macro breakdown UI
-
-components/DailyTracker.tsx – right-side daily summary
-
-components/ChatAssistant.tsx – chat UI + logic
-
-components/DeepAnalysisPage.tsx – weekly insights
-
-components/MealPlanGeneratorPage.tsx – goal-based planning
-
-🎨 UI Highlights
-
-Neon cyber-aesthetic
-
-Glassmorphism cards
-
-Smooth fade-ins
-
-Dynamic bounding boxes
-
-Floating chat assistant
-
-Responsive layout for desktop and mobile
 
 🔮 Future Enhancements
 
