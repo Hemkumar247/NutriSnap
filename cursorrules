@@ -1,0 +1,181 @@
+# .cursorrules — NutriSnap
+
+## Project Identity
+You are helping build NutriSnap, an AI-powered nutrition tracking web app.
+NutriSnap lets users photograph food, get instant calorie and macro estimates from Google Gemini,
+and track their daily intake. The project is a Next.js 14 App Router app with Supabase for auth,
+database, and storage. The existing React UI components are preserved — we are only adding a
+backend API layer, replacing localStorage with Supabase, and securing the Gemini API key
+server-side.
+
+## Core Stack
+- **Runtime:** Node.js 20 / Next.js 14 (App Router)
+- **Language:** TypeScript (strict mode)
+- **Database:** Supabase PostgreSQL with Row Level Security
+- **Auth:** Supabase Auth with `@supabase/ssr` for cookie-based sessions
+- **Storage:** Supabase Storage (`food-images` bucket)
+- **AI:** `@google/genai` v1.28.0+ — Gemini 2.5 Pro, 2.5 Flash, Imagen 4.0, Flash Live Audio
+- **Styling:** Tailwind CSS v3 (npm package — NOT CDN)
+- **Deployment:** Vercel
+
+## Absolute Rules (Never Break These)
+
+- **NEVER put `GEMINI_API_KEY` in any client-side file.** It must only appear in `lib/geminiServer.ts` and API route files inside `app/api/`. If you see it referenced in any `components/`, `services/apiClient.ts`, or any file without `'use server'` or inside `app/api/`, that is a critical security bug.
+- **NEVER import from `lib/geminiServer.ts` in a client component.** This file is server-only. Any client component that needs AI results must call an API route via `fetch()`.
+- **NEVER import from `lib/supabase/admin.ts` in a client component.** The service role key bypasses RLS — it must only be used in API routes and server-side functions.
+- **NEVER use `localStorage` or `sessionStorage`.** All persistent data goes to Supabase DB via `services/dbService.ts`. If you find localStorage usage in a component, replace it with the appropriate `dbService` function.
+- **NEVER use HTML `<form>` elements.** Use button `onClick` + React state for all form submissions. This is the existing pattern throughout the app — maintain it.
+- **NEVER hardcode user IDs, API keys, or secrets.** Everything comes from environment variables or from `supabase.auth.getUser()`.
+
+## Code Style Rules
+
+- Always use `const` — never `let` for values that don't change, never `var`
+- All functions in `lib/` and `services/` must have a JSDoc comment describing purpose, params, and return value
+- All `fetch()` calls in `services/apiClient.ts` must include `Authorization: Bearer <token>` header
+- All API route handlers (`app/api/**/route.ts`) must follow the exact pattern: requireAuth → checkRateLimit → parse input → call geminiServer → return NextResponse.json
+- All Supabase queries must handle the `{ data, error }` destructure pattern — never ignore the `error`
+- Use `Promise.all()` for parallel DB reads on page load — never waterfall sequential awaits
+- Type all function parameters and return values explicitly — avoid `any`
+- React components that use hooks or browser APIs must have `'use client'` at the top
+
+## Naming Conventions
+
+- Variables and functions: `camelCase`
+- React components: `PascalCase`
+- Files: `camelCase.ts` for utilities/services, `PascalCase.tsx` for components, `kebab-case` for Next.js route folders
+- Constants: `UPPER_SNAKE_CASE` (e.g., `PRESET_GOALS`, `MAX_REQUESTS_PER_HOUR`)
+- Database table names: `snake_case` (already defined in schema.md)
+- Environment variables: `UPPER_SNAKE_CASE` with `NEXT_PUBLIC_` prefix for client-safe vars
+
+## Key Function Names (match exactly — these are referenced across docs)
+
+- `analyzeImageServer(imageBuffer, mimeType)` — in `lib/geminiServer.ts`
+- `analyzeTextServer(description)` — in `lib/geminiServer.ts`
+- `getChatResponseServer(message, context)` — in `lib/geminiServer.ts`
+- `generateMealPlanServer(preferences, goals, feedback?)` — in `lib/geminiServer.ts`
+- `generateExploreRecipesServer(context)` — in `lib/geminiServer.ts`
+- `generateRecipeImageServer(recipeName, description)` — in `lib/geminiServer.ts`
+- `getEphemeralLiveToken()` — in `lib/geminiServer.ts`
+- `requireAuth(request)` — in `lib/authMiddleware.ts` — returns `{ userId: string }`
+- `checkRateLimit(userId)` — in `lib/rateLimiter.ts` — returns `{ allowed: boolean, remaining: number }`
+- `addLogEntry(userId, entry)` — in `services/dbService.ts`
+- `getTodayLog(userId)` — in `services/dbService.ts`
+- `uploadFoodImage(userId, file)` — in `services/storageService.ts`
+- `analyzeImage(imageFile)` — in `services/apiClient.ts` (client-side)
+- `getLiveToken()` — in `services/apiClient.ts` (client-side)
+
+## API Route Pattern (always use this exact structure)
+
+```typescript
+// app/api/[endpoint]/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/authMiddleware';
+import { checkRateLimit } from '@/lib/rateLimiter';
+
+export async function POST(request: NextRequest) {
+  try {
+    const { userId } = await requireAuth(request);
+    
+    const { allowed, remaining } = await checkRateLimit(userId);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded. Try again in the next hour.' },
+        { status: 429 }
+      );
+    }
+    
+    const body = await request.json();
+    // validate body here
+    
+    // call geminiServer function here
+    
+    return NextResponse.json(result, { status: 200 });
+    
+  } catch (error) {
+    console.error('[/api/endpoint]', error);
+    return NextResponse.json(
+      { error: 'Something went wrong. Please try again.' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+## dbService Pattern (always use this exact structure)
+
+```typescript
+// services/dbService.ts
+import { createClient } from '@/lib/supabase/client';
+
+export async function getTodayLog(userId: string): Promise<DailyLogItem[]> {
+  const supabase = createClient();
+  const today = new Date().toISOString().split('T')[0];
+  
+  const { data, error } = await supabase
+    .from('food_logs')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('meal_date', today)
+    .order('logged_at', { ascending: false });
+  
+  if (error) throw new Error(`getTodayLog failed: ${error.message}`);
+  return (data ?? []).map(mapDbRowToDailyLogItem);
+}
+```
+
+## Component Update Pattern
+
+When updating existing components to use DB instead of localStorage:
+
+```typescript
+// BEFORE (old localStorage pattern — remove this)
+useEffect(() => {
+  const saved = localStorage.getItem('nutrisnap_log');
+  if (saved) setDailyLog(JSON.parse(saved));
+}, []);
+
+// AFTER (new DB pattern — use this)
+useEffect(() => {
+  if (!userId) return;
+  dbService.getTodayLog(userId).then(setDailyLog).catch(console.error);
+}, [userId]);
+```
+
+## Supabase Error Handling Pattern
+
+```typescript
+const { data, error } = await supabase.from('food_logs').insert(row);
+if (error) {
+  console.error('[dbService.addLogEntry]', error);
+  throw new Error(error.message);
+}
+return data;
+```
+
+## What NOT To Do
+
+- Do NOT create new UI components — the existing components in `/components` are complete. Only modify them to swap localStorage → dbService and geminiService → apiClient.
+- Do NOT change any visual styling, layout, or component structure — only data flow changes.
+- Do NOT put business logic (calorie calculation, weekly data processing) in API routes — this stays in `utils/dataUtils.ts` on the client.
+- Do NOT create new Gemini schema definitions — they already exist in the original `geminiService.ts`. Copy them exactly into `lib/geminiServer.ts`.
+- Do NOT add any client-side state management library (Redux, Zustand) — existing React `useState` pattern is correct for this app.
+- Do NOT add React Query or SWR — plain `useEffect` + `useState` is the existing pattern.
+- Do NOT use `supabase.from().select()` in API routes — API routes use `geminiServer.ts` for AI and `supabaseAdmin` only for rate limiting. All user data queries go through `dbService.ts` on the client.
+- Do NOT skip the `requireAuth` call in any API route — every route must validate the JWT.
+- Do NOT use `response.json()` in API routes before checking `response.ok` in `apiClient.ts`.
+
+## Existing Files — Do Not Modify These
+
+The following files from the original project should be copied unchanged:
+- All files in `/components/` (UI is complete — only data wiring changes in the page)
+- `/services/soundService.ts`
+- `/utils/dataUtils.ts`
+- `/utils/audioUtils.ts`
+- `/types/index.ts` (add new types alongside existing ones — do not remove any)
+
+## Reference Documents
+- `PRD.md` — Feature requirements and what is in/out of scope
+- `technical-spec.md` — Architecture, all function signatures, environment variables
+- `app-flow.md` — User journeys and edge case handling
+- `schema.md` — All database tables, columns, types, and RLS policies
+- `implementation-plan.md` — Phased task checklist (follow this order)
