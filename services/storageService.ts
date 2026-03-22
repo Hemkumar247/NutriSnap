@@ -1,67 +1,72 @@
-import { adminStorage } from '@/lib/firebase/admin';
-import { v4 as uuidv4 } from 'uuid';
-
 /**
- * Firebase Cloud Storage Service
- * Handles uploading and deleting food images in the 'food-images' bucket.
- * Server-only functions (uses firebase-admin).
- */
-
-/**
- * Uploads a food image to Firebase Cloud Storage.
- * Returns the public download URL of the uploaded image.
- * Called server-side from the API route after food analysis.
+ * Uploads a food image buffer to Cloudinary.
+ * Called from app/api/analyze/image/route.ts after analysis.
+ * Returns the permanent secure_url.
  */
 export async function uploadFoodImage(
   userId: string,
   imageBuffer: Buffer,
   mimeType: string
 ): Promise<string> {
-  try {
-    const bucket = adminStorage.bucket();
-    const fileName = `${userId}/${uuidv4()}.jpg`; // Storing as .jpg for standardization
-    const file = bucket.file(`food-images/${fileName}`);
+  const base64 = imageBuffer.toString('base64');
+  const dataUri = `data:${mimeType};base64,${base64}`;
 
-    await file.save(imageBuffer, {
-      metadata: {
-        contentType: mimeType,
-      },
-      public: true, // Making it publicly readable as per PRD requirements
-    });
+  const formData = new FormData();
+  formData.append('file', dataUri);
+  formData.append('upload_preset', 'nutrisnap_food');
+  formData.append('folder', `food-images/${userId}`);
+  formData.append('public_id', crypto.randomUUID());
 
-    // The public URL format for Firebase Storage:
-    // https://storage.googleapis.com/[BUCKET_NAME]/[FILE_PATH]
-    return `https://storage.googleapis.com/${bucket.name}/${file.name}`;
-  } catch (error: any) {
-    console.error('[storageService.uploadFoodImage] Error:', error);
-    throw new Error(`Firebase Storage upload failed: ${error.message}`);
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload`,
+    { method: 'POST', body: formData }
+  );
+
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(`Cloudinary upload failed: ${err.error?.message ?? res.statusText}`);
   }
+
+  const data = await res.json();
+  return data.secure_url as string;
 }
 
 /**
- * Deletes a food image from Firebase Cloud Storage.
- * Never throws — logs errors but does not block the caller.
+ * Deletes a food image from Cloudinary.
  * Called when a food log entry is deleted.
+ * Never throws — logs errors silently so log deletion always succeeds.
  */
 export async function deleteFoodImage(imageUrl: string): Promise<void> {
   try {
-    if (!imageUrl) return;
+    // Extract public_id from URL
+    // Format: https://res.cloudinary.com/{cloud}/image/upload/v{n}/{public_id}.ext
+    const uploadIdx = imageUrl.indexOf('/upload/');
+    if (uploadIdx === -1) return;
+    const afterUpload = imageUrl.slice(uploadIdx + 8); // skip "/upload/"
+    const withoutVersion = afterUpload.replace(/^v\d+\//, '');
+    const publicId = withoutVersion.replace(/\.[^/.]+$/, ''); // remove extension
 
-    // Extract path from URL
-    // URL format: https://storage.googleapis.com/[BUCKET_NAME]/food-images/[USER_ID]/[UUID].jpg
-    const bucket = adminStorage.bucket();
-    const urlParts = imageUrl.split(`${bucket.name}/`);
-    if (urlParts.length < 2) return;
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const sigString = `public_id=${publicId}&timestamp=${timestamp}${process.env.CLOUDINARY_API_SECRET}`;
 
-    const fileName = urlParts[1];
-    const file = bucket.file(fileName);
+    // SHA-1 signature using Web Crypto
+    const encoded = new TextEncoder().encode(sigString);
+    const hashBuf = await crypto.subtle.digest('SHA-1', encoded);
+    const signature = Array.from(new Uint8Array(hashBuf))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
 
-    const [exists] = await file.exists();
-    if (exists) {
-      await file.delete();
-    }
-  } catch (error) {
-    console.error('[storageService.deleteFoodImage] Error:', error);
-    // Do not throw — caller proceeds regardless
+    const fd = new FormData();
+    fd.append('public_id', publicId);
+    fd.append('timestamp', timestamp);
+    fd.append('api_key', process.env.CLOUDINARY_API_KEY!);
+    fd.append('signature', signature);
+
+    await fetch(
+      `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/image/destroy`,
+      { method: 'POST', body: fd }
+    );
+  } catch (err) {
+    console.error('[storageService.deleteFoodImage]', err);
   }
 }

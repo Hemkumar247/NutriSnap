@@ -74,3 +74,8 @@ export interface AppSettings {
 }
 
 export type AppView = 'dashboard' | 'analysis' | 'mealPlan' | 'profile' | 'settings';
+
+export interface ChatContext { [key: string]: any; }
+export interface GroundingSource { [key: string]: any; }
+export interface ExploreRecipe { id: string; name: string; description: string; calories: number; protein: number; carbs: number; fat: number; imageUrl?: string; savedAt?: Date; }
+export interface ExploreCategory { title: string; description: string; recipes: ExploreRecipe[]; }

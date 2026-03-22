@@ -1,22 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function middleware(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Public routes — always allow
-  const publicRoutes = ['/login', '/signup', '/auth/callback'];
-  if (publicRoutes.some(r => pathname.startsWith(r))) {
+  // Always allow: static files, API routes (they verify auth themselves),
+  // auth pages, and the auth callback
+  if (
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/api/') ||
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/signup') ||
+    pathname.startsWith('/auth/') ||
+    pathname.includes('.')
+  ) {
     return NextResponse.next();
   }
 
-  // API routes handle their own auth via authMiddleware
-  if (pathname.startsWith('/api/')) {
-    return NextResponse.next();
-  }
-
-  // Protected routes — check for session cookie
-  const sessionCookie = request.cookies.get('__session')?.value;
-  if (!sessionCookie) {
+  // For all other routes (including /dashboard), check for session cookie
+  const session = request.cookies.get('__session')?.value;
+  if (!session) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
@@ -24,7 +26,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.svg$).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };

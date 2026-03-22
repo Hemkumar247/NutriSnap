@@ -1,102 +1,82 @@
-import type { 
-  AnalysisResult, 
-  MealPlan, 
-  MealPlanPreferences, 
-  NutritionInfo 
-} from '../types';
+import type {
+  AnalysisResult, ChatContext, GroundingSource, MealPlan,
+  MealPlanPreferences, NutritionInfo, ExploreCategory, DailyLogItem,
+} from '@/types';
 
-/**
- * API Client — Frontend Wrappers
- * These functions replace the original direct Gemini calls.
- * They call the Next.js API layer which handles secure keys,
- * rate limiting, and authentication via the __session cookie.
- */
-
-/**
- * Custom error class for API failures
- */
 export class ApiError extends Error {
-  status: number;
-  constructor(message: string, status: number) {
+  constructor(public status: number, message: string) {
     super(message);
-    this.status = status;
     this.name = 'ApiError';
   }
 }
 
-/**
- * Generic fetch wrapper with error handling
- */
-async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(endpoint, options);
-  
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new ApiError(errorData.error || response.statusText, response.status);
+async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
+  const res = await fetch(path, { ...options, credentials: 'include' });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    throw new ApiError(res.status, body.error ?? 'Request failed');
   }
-
-  return response.json();
+  return res.json();
 }
 
-/**
- * Analyzes a meal photo by uploading it to the server.
- */
-export async function analyzeMeal(
-  imageFile: File, 
-  remainingGoals: NutritionInfo, 
+async function apiPost(path: string, body: object): Promise<any> {
+  return apiFetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function analyzeImage(
+  imageFile: File,
+  remainingGoals: NutritionInfo,
   mealDescription: string
 ): Promise<AnalysisResult & { imageUrl?: string }> {
-  const formData = new FormData();
-  formData.append('image', imageFile);
-  formData.append('remainingGoals', JSON.stringify(remainingGoals));
-  formData.append('mealDescription', mealDescription);
-
-  return fetchApi<AnalysisResult & { imageUrl?: string }>('/api/analyze/image', {
-    method: 'POST',
-    body: formData,
-  });
+  const fd = new FormData();
+  fd.append('image', imageFile);
+  fd.append('remainingGoals', JSON.stringify(remainingGoals));
+  fd.append('mealDescription', mealDescription);
+  // No Content-Type header — browser sets multipart boundary automatically
+  return apiFetch('/api/analyze/image', { method: 'POST', body: fd });
 }
 
-/**
- * Analyzes a text description of a meal.
- */
-export async function analyzeMealFromText(
-  mealDescription: string, 
+export async function analyzeText(
+  mealDescription: string,
   remainingGoals: NutritionInfo
 ): Promise<AnalysisResult> {
-  return fetchApi<AnalysisResult>('/api/analyze/text', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ description: mealDescription, remainingGoals }),
-  });
+  return apiPost('/api/analyze/text', { mealDescription, remainingGoals });
 }
 
+export async function chat(
+  message: string,
+  context: ChatContext
+): Promise<{ text: string; sources: GroundingSource[] }> {
+  return apiPost('/api/chat', { message, context });
+}
 
-/**
- * Generates a personalized meal plan.
- */
 export async function generateMealPlan(
-  preferences: MealPlanPreferences, 
-  goals: NutritionInfo, 
+  preferences: MealPlanPreferences,
+  goals: NutritionInfo,
   feedback?: string
 ): Promise<MealPlan> {
-  return fetchApi<MealPlan>('/api/meal-plan', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ preferences, goals, feedback }),
-  });
+  return apiPost('/api/meal-plan', { preferences, goals, feedback });
 }
 
-/**
- * Deletes a food image from storage via the secure API route.
- */
-export async function deleteFoodImage(imageUrl: string): Promise<void> {
-    if (!imageUrl) return;
-    return fetchApi<void>('/api/storage/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl }),
-    });
+export async function generateExploreContent(
+  context: { log: { foodName: string }[]; prefs: MealPlanPreferences | null }
+): Promise<ExploreCategory[]> {
+  return apiPost('/api/explore', { context });
 }
 
+export async function generateExploreImage(
+  recipeName: string,
+  recipeDescription: string
+): Promise<string> {
+  const data = await apiPost('/api/explore/image', { recipeName, recipeDescription });
+  return data.imageBase64 as string;
+}
 
+export async function getLiveToken(): Promise<string> {
+  const data = await apiFetch('/api/live-token', { credentials: 'include' });
+  return data.token as string;
+}

@@ -11,6 +11,7 @@ interface SideMenuProps {
     onHistoryClick: () => void;
     onReportClick: () => void;
     userName: string;
+    onSignOut?: () => void;
 }
 
 const NavItem: React.FC<{ label: string; onClick: () => void; children: React.ReactNode; isCollapsed: boolean; isActive?: boolean; }> = ({ label, onClick, children, isCollapsed, isActive }) => {
@@ -43,7 +44,7 @@ const NavItem: React.FC<{ label: string; onClick: () => void; children: React.Re
 };
 
 
-export const SideMenu: React.FC<SideMenuProps> = ({ isCollapsed, activeView, onToggle, onNavClick, onHistoryClick, onReportClick, userName }) => {
+export const SideMenu: React.FC<SideMenuProps> = ({ isCollapsed, activeView, onToggle, onNavClick, onHistoryClick, onReportClick, userName, onSignOut }) => {
   return (
     <aside className={`fixed top-0 left-0 h-screen bg-slate-900/50 backdrop-blur-lg border-r border-cyan-300/10 z-40 flex flex-col p-2 transition-all duration-300 ease-in-out ${isCollapsed ? 'w-20' : 'w-64'}`}>
         {/* Toggle Button */}
@@ -88,7 +89,17 @@ export const SideMenu: React.FC<SideMenuProps> = ({ isCollapsed, activeView, onT
                 </div>
                 <div className={`ml-3 transition-opacity duration-200 ${isCollapsed ? 'opacity-0' : 'opacity-100'}`}>
                     <p className="font-semibold text-sm text-slate-100 whitespace-nowrap">{userName}</p>
-                    <p className="text-xs text-slate-400 whitespace-nowrap hover:text-cyan-400">View Profile</p>
+                    <div className="flex gap-2">
+                        <span className="text-xs text-slate-400 hover:text-cyan-400">Profile</span>
+                        {onSignOut && (
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onSignOut(); }}
+                                className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                            >
+                                Sign out
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

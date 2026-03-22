@@ -3,16 +3,16 @@ import { adminAuth } from '@/lib/firebase/admin';
 
 export async function POST(request: NextRequest) {
   try {
-    const sessionCookie = request.cookies.get('__session')?.value;
-    if (sessionCookie) {
-      const decoded = await adminAuth.verifySessionCookie(sessionCookie);
+    const session = request.cookies.get('__session')?.value;
+    if (session) {
+      const decoded = await adminAuth.verifySessionCookie(session);
       await adminAuth.revokeRefreshTokens(decoded.uid);
     }
   } catch {
-    // Ignore errors — proceed with clearing the cookie regardless
+    // Ignore errors — clear cookie regardless
   }
 
-  const response = NextResponse.json({ status: 'signed out' }, { status: 200 });
+  const response = NextResponse.json({ status: 'signed out' });
   response.cookies.delete('__session');
   return response;
 }

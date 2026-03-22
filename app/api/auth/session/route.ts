@@ -5,14 +5,14 @@ export async function POST(request: NextRequest) {
   try {
     const { idToken } = await request.json();
     if (!idToken) {
-      return NextResponse.json({ error: 'idToken is required' }, { status: 400 });
+      return NextResponse.json({ error: 'idToken required' }, { status: 400 });
     }
 
-    // Session cookie expires in 5 days
+    // 5 day session
     const expiresIn = 60 * 60 * 24 * 5 * 1000;
     const sessionCookie = await adminAuth.createSessionCookie(idToken, { expiresIn });
 
-    const response = NextResponse.json({ status: 'success' }, { status: 200 });
+    const response = NextResponse.json({ status: 'ok' });
     response.cookies.set('__session', sessionCookie, {
       maxAge: expiresIn / 1000,
       httpOnly: true,
@@ -22,8 +22,8 @@ export async function POST(request: NextRequest) {
     });
     return response;
 
-  } catch (error) {
-    console.error('[/api/auth/session]', error);
+  } catch (err) {
+    console.error('[/api/auth/session]', err);
     return NextResponse.json({ error: 'Failed to create session' }, { status: 401 });
   }
 }

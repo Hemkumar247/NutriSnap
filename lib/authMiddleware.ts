@@ -6,29 +6,24 @@ export interface AuthResult {
 }
 
 /**
- * Verifies the __session cookie on incoming API route requests.
- * Returns the authenticated userId or throws.
- * Call this at the top of every API route handler.
+ * Verifies the __session cookie on every API route request.
+ * Throws if the session is missing or invalid.
+ * Usage in every API route:
+ *   try { const { userId } = await requireAuth(request); }
+ *   catch { return sendUnauthorized(); }
  */
 export async function requireAuth(request: NextRequest): Promise<AuthResult> {
   const sessionCookie = request.cookies.get('__session')?.value;
-
-  if (!sessionCookie) {
-    throw new Error('No session cookie');
-  }
+  if (!sessionCookie) throw new Error('No session');
 
   try {
-    // Note: checkRevoked=true for security
     const decoded = await adminAuth.verifySessionCookie(sessionCookie, true);
     return { userId: decoded.uid };
-  } catch (error: any) {
-    throw new Error('Invalid or expired session');
+  } catch {
+    throw new Error('Invalid session');
   }
 }
 
-/**
- * Standard 401 response — call this in the catch block of requireAuth.
- */
 export function sendUnauthorized(): NextResponse {
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 }

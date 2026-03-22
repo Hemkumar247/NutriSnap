@@ -1,38 +1,40 @@
 import { adminDb } from '@/lib/firebase/admin';
 import { FieldValue } from 'firebase-admin/firestore';
 
-// Limit users to 20 calls per hour for cost control
 const MAX_REQUESTS_PER_HOUR = 20;
 
 /**
- * Checks and increments the rate limit for a user in Firestore.
- * Never throws — if Firestore fails, it defaults to allowing the request through.
+ * Increments and checks the rate limit for a user.
+ * Uses a Firestore transaction so concurrent requests don't race.
+ * Path: rate_limits/{userId}/windows/{windowId}
+ * Never throws — if Firestore fails, the request is allowed through.
  */
 export async function checkRateLimit(
   userId: string
 ): Promise<{ allowed: boolean; remaining: number }> {
   try {
-    // Window = current hour (e.g., 2PM, 3PM)
     const now = new Date();
     now.setMinutes(0, 0, 0);
     const windowId = now.toISOString();
 
-    const statsRef = adminDb.collection('rate_limits').doc(userId);
-    const windowRef = statsRef.collection('windows').doc(windowId);
+    const windowRef = adminDb
+      .collection('rate_limits')
+      .doc(userId)
+      .collection('windows')
+      .doc(windowId);
 
-    let count = 1;
+    let finalCount = 1;
 
-    // Transaction ensures accurate incrementing
     await adminDb.runTransaction(async (t) => {
-      const doc = await t.get(windowRef);
-      if (doc.exists) {
-        count = (doc.data()?.requestCount || 0) + 1;
+      const snap = await t.get(windowRef);
+      if (snap.exists) {
+        finalCount = (snap.data()!.requestCount ?? 0) + 1;
         t.update(windowRef, {
           requestCount: FieldValue.increment(1),
           updatedAt: new Date(),
         });
       } else {
-        count = 1;
+        finalCount = 1;
         t.set(windowRef, {
           userId,
           windowStart: windowId,
@@ -43,12 +45,11 @@ export async function checkRateLimit(
     });
 
     return {
-      allowed: count <= MAX_REQUESTS_PER_HOUR,
-      remaining: Math.max(0, MAX_REQUESTS_PER_HOUR - count),
+      allowed: finalCount <= MAX_REQUESTS_PER_HOUR,
+      remaining: Math.max(0, MAX_REQUESTS_PER_HOUR - finalCount),
     };
-  } catch (error) {
-    console.error('[rateLimiter] Error during check:', error);
-    // Never block legitimate requests because the rate limiter failed
+  } catch (err) {
+    console.error('[rateLimiter]', err);
     return { allowed: true, remaining: MAX_REQUESTS_PER_HOUR };
   }
 }

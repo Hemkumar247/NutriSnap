@@ -1,4 +1,5 @@
-// Browser-side Firebase SDK — safe to use in client components
+// Browser-safe Firebase SDK initialization
+// Safe to import in client components and 'use client' pages
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
@@ -12,9 +13,7 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
 };
 
-// Prevent duplicate app initialization in Next.js dev mode
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export { app };
