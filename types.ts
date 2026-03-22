@@ -58,23 +58,6 @@ export interface MealPlan {
   plan: DailyMealPlan[];
 }
 
-// Types for the new Explore feature
-export interface ExploreRecipe {
-  id: string;
-  name: string;
-  description: string;
-  nutrition: NutritionInfo;
-  ingredients: string[];
-  instructions: string[];
-  imageUrl?: string; // Web URL or Base64 image string
-  imageIsGenerating?: boolean;
-}
-
-export interface ExploreCategory {
-  categoryTitle: string;
-  recipes: ExploreRecipe[];
-}
-
 
 export interface UserProfile {
   name: string;
@@ -90,4 +73,4 @@ export interface AppSettings {
   units: 'metric' | 'imperial';
 }
 
-export type AppView = 'dashboard' | 'analysis' | 'mealPlan' | 'explore' | 'saved' | 'profile' | 'settings';
+export type AppView = 'dashboard' | 'analysis' | 'mealPlan' | 'profile' | 'settings';

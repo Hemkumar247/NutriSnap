@@ -2,7 +2,6 @@ import type {
   AnalysisResult, 
   MealPlan, 
   MealPlanPreferences, 
-  ExploreCategory, 
   NutritionInfo 
 } from '../types';
 
@@ -88,32 +87,4 @@ export async function generateMealPlan(
   });
 }
 
-/**
- * Generates custom recipe suggestions for the Explore page.
- */
-export async function generateExploreRecipes(
-  context: { log: { foodName: string }[], prefs: MealPlanPreferences | null }
-): Promise<ExploreCategory[]> {
-  const data = await fetchApi<{ recipeCategories: ExploreCategory[] }>('/api/explore', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ context }),
-  });
-  return data.recipeCategories || [];
-}
-
-/**
- * Generates a recipe image (returns a base64 string or public URL depending on implementation).
- */
-export async function generateRecipeImage(
-  recipeName: string, 
-  recipeDescription: string
-): Promise<string> {
-  const data = await fetchApi<{ imageBase64: string }>('/api/explore/image', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ recipeName, description: recipeDescription }),
-  });
-  return data.imageBase64;
-}
 

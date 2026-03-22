@@ -63,12 +63,6 @@ export const SideMenu: React.FC<SideMenuProps> = ({ isCollapsed, activeView, onT
              <NavItem label="Meal Plan" onClick={() => onNavClick('mealPlan')} isCollapsed={isCollapsed} isActive={activeView === 'mealPlan'}>
                 <MealPlanIcon className="w-6 h-6 flex-shrink-0" />
             </NavItem>
-             <NavItem label="Explore Recipes" onClick={() => onNavClick('explore')} isCollapsed={isCollapsed} isActive={activeView === 'explore'}>
-                <ExploreIcon className="w-6 h-6 flex-shrink-0" />
-            </NavItem>
-            <NavItem label="Saved Recipes" onClick={() => onNavClick('saved')} isCollapsed={isCollapsed} isActive={activeView === 'saved'}>
-                <BookmarkIcon className="w-6 h-6 flex-shrink-0" />
-            </NavItem>
             <NavItem label="Deep Analysis" onClick={() => onNavClick('analysis')} isCollapsed={isCollapsed} isActive={activeView === 'analysis'}>
                 <TrendingUpIcon className="w-6 h-6 flex-shrink-0" />
             </NavItem>

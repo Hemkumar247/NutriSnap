@@ -19,7 +19,6 @@ import type {
     AppView, 
     MealPlanPreferences, 
     MealPlan, 
-    ExploreRecipe, 
     UserProfile, 
     AppSettings 
 } from '@/types';
@@ -33,8 +32,6 @@ import { MealDetailModal } from '@/components/MealDetailModal';
 import { soundService } from '@/services/soundService';
 import { DeepAnalysisPage } from '@/components/DeepAnalysisPage';
 import { MealPlanGeneratorPage } from '@/components/MealPlanGeneratorPage';
-import { ExplorePage } from '@/components/ExplorePage';
-import { SavedRecipesPage } from '@/components/SavedRecipesPage';
 import { ProfilePage } from '@/components/ProfilePage';
 import { SettingsPage } from '@/components/SettingsPage';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
@@ -95,7 +92,6 @@ const DashboardPage: React.FC = () => {
 
   const [mealPlanPreferences, setMealPlanPreferences] = useState<MealPlanPreferences | null>(null);
   const [mealPlan, setMealPlan] = useState<MealPlan | null>(null);
-  const [savedRecipes, setSavedRecipes] = useState<ExploreRecipe[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [isMounted, setIsMounted] = useState(false);
@@ -117,13 +113,12 @@ const DashboardPage: React.FC = () => {
 
       const today = new Date().toISOString().split('T')[0];
       try {
-        const [log, settings, profile, water, mealPrefs, savedRecs, lastPlan] = await Promise.all([
+        const [log, settings, profile, water, mealPrefs, lastPlan] = await Promise.all([
           dbService.getTodayLog(user.uid),
           dbService.getSettings(user.uid),
           dbService.getUserProfile(user.uid),
           dbService.getWaterLog(user.uid, today),
           dbService.getMealPlanPreferences(user.uid),
-          dbService.getSavedRecipes(user.uid),
           dbService.getLastMealPlan(user.uid),
         ]);
 
@@ -152,7 +147,6 @@ const DashboardPage: React.FC = () => {
           setWaterGoal(water.goal); 
         }
         if (mealPrefs) setMealPlanPreferences(mealPrefs);
-        if (savedRecs.length) setSavedRecipes(savedRecs);
         if (lastPlan) setMealPlan(lastPlan.plan);
       } catch (err) {
         console.error('Failed to load user data:', err);
@@ -184,13 +178,6 @@ const DashboardPage: React.FC = () => {
     }
   }, [activeView, userId]);
 
-  useEffect(() => {
-    if (activeView === 'saved' && userId) {
-      dbService.getSavedRecipes(userId)
-        .then(setSavedRecipes)
-        .catch(console.error);
-    }
-  }, [activeView, userId]);
 
   // Handlers
   const handleSignOut = async () => {
@@ -387,27 +374,6 @@ const DashboardPage: React.FC = () => {
 
 
 
-  const handleSaveRecipe = async (recipe: ExploreRecipe) => {
-    if (!userId) return;
-    try {
-        await dbService.addSavedRecipe(userId, recipe);
-        setSavedRecipes(prev => [...prev, recipe]);
-        soundService.play('success');
-    } catch (err) {
-        console.error('Failed to save recipe:', err);
-    }
-  };
-
-  const handleUnsaveRecipe = async (recipeId: string) => {
-    if (!userId) return;
-    try {
-        await dbService.deleteSavedRecipe(userId, recipeId);
-        setSavedRecipes(prev => prev.filter(r => r.id !== recipeId));
-        soundService.play('stop');
-    } catch (err) {
-        console.error('Failed to unsave recipe:', err);
-    }
-  };
 
   const handleUpdateProfile = async (profile: UserProfile) => {
     if (!userId) return;
@@ -439,7 +405,7 @@ const DashboardPage: React.FC = () => {
   };
   
   const handleExportData = () => {
-    const dataToExport = { profile: userProfile, settings: appSettings, log: dailyLog, goals: dailyGoals, savedRecipes, mealPlanPreferences };
+    const dataToExport = { profile: userProfile, settings: appSettings, log: dailyLog, goals: dailyGoals, mealPlanPreferences };
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
@@ -455,7 +421,6 @@ const DashboardPage: React.FC = () => {
     // For now, we reset local state and provide a hint
     setDailyLog([]);
     setWaterIntake(0);
-    setSavedRecipes([]);
     setMealPlanPreferences(null);
     setMealPlan(null);
     setDailyGoals(PRESET_GOALS.maintenance);
@@ -479,8 +444,6 @@ const DashboardPage: React.FC = () => {
       case 'dashboard': return 'NutriSnap';
       case 'analysis': return 'Deep Analysis';
       case 'mealPlan': return 'Meal Plan Generator';
-      case 'explore': return 'Explore Recipes';
-      case 'saved': return 'Saved Recipes';
       case 'profile': return 'User Profile';
       case 'settings': return 'Settings';
       default: return 'NutriSnap';
@@ -690,18 +653,6 @@ const DashboardPage: React.FC = () => {
               />
             )}
 
-            {activeView === 'explore' && (
-                <ExplorePage
-                    log={dailyLog}
-                    preferences={mealPlanPreferences}
-                    savedRecipes={savedRecipes}
-                    onSaveRecipe={handleSaveRecipe}
-                    onUnsaveRecipe={handleUnsaveRecipe}
-                />
-            )}
-
-            {activeView === 'saved' && <SavedRecipesPage recipes={savedRecipes} onUnsaveRecipe={handleUnsaveRecipe} onSaveRecipe={handleSaveRecipe} />}
-            
             {activeView === 'profile' && <ProfilePage profile={userProfile} settings={appSettings} onSaveProfile={handleUpdateProfile} onRecalculateGoals={handleRecalculateGoals} />}
             
             {activeView === 'settings' && (

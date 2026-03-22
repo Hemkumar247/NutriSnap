@@ -3,7 +3,6 @@ import type {
   AnalysisResult, 
   MealPlan, 
   MealPlanPreferences, 
-  ExploreCategory, 
   NutritionInfo,
   DailyLogItem
 } from '../types';
@@ -136,48 +135,6 @@ const mealPlanSchema = {
     required: ['plan']
 };
 
-/**
- * Schema for categorized explore recipes.
- */
-const exploreRecipesSchema = {
-  type: Type.OBJECT,
-  properties: {
-    recipeCategories: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          categoryTitle: { type: Type.STRING },
-          recipes: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                name: { type: Type.STRING },
-                description: { type: Type.STRING },
-                nutrition: {
-                  type: Type.OBJECT,
-                  properties: {
-                    calories: { type: Type.NUMBER },
-                    protein: { type: Type.NUMBER },
-                    carbs: { type: Type.NUMBER },
-                    fat: { type: Type.NUMBER }
-                  },
-                  required: ['calories', 'protein', 'carbs', 'fat']
-                },
-                ingredients: { type: Type.ARRAY, items: { type: Type.STRING } },
-                instructions: { type: Type.ARRAY, items: { type: Type.STRING } }
-              },
-              required: ['name', 'description', 'nutrition', 'ingredients', 'instructions']
-            }
-          }
-        },
-        required: ['categoryTitle', 'recipes']
-      }
-    }
-  },
-  required: ['recipeCategories']
-};
 
 // --- SERVER FUNCTIONS ---
 
@@ -275,41 +232,4 @@ export async function generateMealPlanServer(preferences: MealPlanPreferences, g
   return JSON.parse(response.text || '{ "plan": [] }');
 }
 
-/**
- * Generates recipe categories for the Explore page.
- */
-export async function generateExploreRecipesServer(
-    context: { log: { foodName: string }[], prefs: MealPlanPreferences | null }
-): Promise<ExploreCategory[]> {
-  const recentFood = context.log.map(i => i.foodName).slice(-5).join(', ');
-  
-  const prompt = `Generate 4 recipe categories for the Explore page. 
-  The categories MUST be titled: "Healthy Choices", "Snacks Based", "Protein Packed", and "Low Carb Delights".
-  
-  For each category, generate 5 high-quality, delicious recipes.
-  Personalize the specific recipe selections based on the user's context:
-  - Recent meals: ${recentFood || 'No history yet'}
-  - Preferences: ${JSON.stringify(context.prefs)}
-  
-  Include 5 recipes per category. For each recipe, include full nutrition (calories, protein, carbs, fat), ingredients, and step-by-step instructions.`;
-  
-  const response = await ai.models.generateContent({
-    model: 'gemini-1.5-flash',
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: exploreRecipesSchema as any
-    }
-  });
-
-  const data = JSON.parse(response.text || '{ "recipeCategories": [] }');
-  return data.recipeCategories;
-}
-
-/**
- * Placeholder for recipe image generation.
- */
-export async function generateRecipeImageServer(recipeName: string, description: string): Promise<{ imageBase64: string }> {
-  return { imageBase64: '' };
-}
 

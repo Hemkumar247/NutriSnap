@@ -4,7 +4,7 @@ import { ImageUploader } from './components/ImageUploader';
 import { NutritionDisplay } from './components/NutritionDisplay';
 import { DailyTracker } from './components/DailyTracker';
 import { analyzeMeal, analyzeMealFromText } from '@/services/apiClient';
-import type { AnalysisResult, DailyLogItem, NutritionInfo, AppView, MealPlanPreferences, MealPlan, ExploreRecipe, UserProfile, AppSettings } from './types';
+import type { AnalysisResult, DailyLogItem, NutritionInfo, AppView, MealPlanPreferences, MealPlan, UserProfile, AppSettings } from './types';
 import { Spinner } from './components/Spinner';
 import { ResetIcon, LightbulbIcon } from './components/IconComponents';
 import { EditLogModal } from './components/EditLogModal';
@@ -15,8 +15,6 @@ import { MealDetailModal } from './components/MealDetailModal';
 import { soundService } from './services/soundService';
 import { DeepAnalysisPage } from './components/DeepAnalysisPage';
 import { MealPlanGeneratorPage } from './components/MealPlanGeneratorPage';
-import { ExplorePage } from './components/ExplorePage';
-import { SavedRecipesPage } from './components/SavedRecipesPage';
 import { ProfilePage } from './components/ProfilePage';
 import { SettingsPage } from './components/SettingsPage';
 import { ConfirmationModal } from './components/ConfirmationModal';
@@ -68,7 +66,6 @@ const App: React.FC = () => {
   const [waterIntake, setWaterIntake] = useState<number>(0);
   const [waterGoal, setWaterGoal] = useState<number>(2500); // Default 2.5L
 
-  
   // Modal States
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [isReportOpen, setIsReportOpen] = useState<boolean>(false);
@@ -82,10 +79,7 @@ const App: React.FC = () => {
   const [mealPlanPreferences, setMealPlanPreferences] = useState<MealPlanPreferences | null>(null);
   const [mealPlan, setMealPlan] = useState<MealPlan | null>(null);
 
-  // Saved Recipes State
-  const [savedRecipes, setSavedRecipes] = useState<ExploreRecipe[]>([]);
-
-  // Profile & Settings State
+   // Profile & Settings State
   const [userProfile, setUserProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
 
@@ -135,12 +129,6 @@ const App: React.FC = () => {
       if (savedPrefs) {
         setMealPlanPreferences(JSON.parse(savedPrefs));
       }
-      
-      // Load Saved Recipes
-      const savedRecipesData = localStorage.getItem('nutrisnap_saved_recipes');
-      if (savedRecipesData) {
-        setSavedRecipes(JSON.parse(savedRecipesData));
-      }
 
       // Load Profile
       const savedProfile = localStorage.getItem('nutrisnap_profile');
@@ -161,11 +149,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => {
-    if (!isInitialLoad.current) {
-        localStorage.setItem('nutrisnap_saved_recipes', JSON.stringify(savedRecipes));
-    }
-  }, [savedRecipes]);
 
   useEffect(() => {
     if (!isInitialLoad.current) {
@@ -374,24 +357,10 @@ const App: React.FC = () => {
     soundService.play('success');
   };
   
-  
   const handleViewChange = (view: AppView) => {
     setActiveView(view);
     soundService.play('click');
   }
-
-  const handleSaveRecipe = (recipe: ExploreRecipe) => {
-    setSavedRecipes(prev => {
-        if (prev.some(r => r.id === recipe.id)) return prev;
-        return [...prev, recipe];
-    });
-    soundService.play('success');
-  };
-
-  const handleUnsaveRecipe = (recipeId: string) => {
-      setSavedRecipes(prev => prev.filter(r => r.id !== recipeId));
-      soundService.play('stop');
-  };
 
   const handleUpdateProfile = (profile: UserProfile) => {
     setUserProfile(profile);
@@ -436,7 +405,6 @@ const App: React.FC = () => {
       settings: appSettings,
       log: dailyLog,
       goals: dailyGoals,
-      savedRecipes: savedRecipes,
       mealPlanPreferences: mealPlanPreferences,
     };
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
@@ -453,7 +421,6 @@ const App: React.FC = () => {
     // Clear state
     setDailyLog([]);
     setWaterIntake(0);
-    setSavedRecipes([]);
     setMealPlanPreferences(null);
     setMealPlan(null);
     setDailyGoals(PRESET_GOALS.maintenance);
@@ -485,8 +452,6 @@ const App: React.FC = () => {
       case 'dashboard': return 'NutriSnap';
       case 'analysis': return 'Deep Analysis';
       case 'mealPlan': return 'Meal Plan Generator';
-      case 'explore': return 'Explore Recipes';
-      case 'saved': return 'Saved Recipes';
       case 'profile': return 'User Profile';
       case 'settings': return 'Settings';
       default: return 'NutriSnap';
@@ -687,24 +652,6 @@ const App: React.FC = () => {
               />
             )}
 
-            {activeView === 'explore' && (
-                <ExplorePage
-                    log={dailyLog}
-                    preferences={mealPlanPreferences}
-                    savedRecipes={savedRecipes}
-                    onSaveRecipe={handleSaveRecipe}
-                    onUnsaveRecipe={handleUnsaveRecipe}
-                />
-            )}
-
-            {activeView === 'saved' && (
-                <SavedRecipesPage 
-                    recipes={savedRecipes} 
-                    onUnsaveRecipe={handleUnsaveRecipe}
-                    onSaveRecipe={handleSaveRecipe}
-                />
-            )}
-            
             {activeView === 'profile' && (
                 <ProfilePage 
                     profile={userProfile}

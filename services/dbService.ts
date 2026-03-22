@@ -22,7 +22,6 @@ import type {
     UserProfile, 
     AppSettings, 
     MealPlanPreferences, 
-    ExploreRecipe, 
     NutritionInfo,
     MealPlan
 } from '../types';
@@ -309,40 +308,3 @@ export async function getMealPlanPreferences(userId: string): Promise<MealPlanPr
     }
 }
 
-/**
- * ⭐ SAVED RECIPES
- */
-
-export async function addSavedRecipe(userId: string, recipe: ExploreRecipe): Promise<void> {
-    try {
-        const docRef = doc(db, 'users', userId, 'saved_recipes', recipe.id);
-        await setDoc(docRef, {
-            ...recipe,
-            savedAt: Timestamp.now()
-        });
-    } catch (error: any) {
-        throw new Error(`Failed to save recipe: ${error.message}`);
-    }
-}
-
-export async function deleteSavedRecipe(userId: string, recipeId: string): Promise<void> {
-    try {
-        const docRef = doc(db, 'users', userId, 'saved_recipes', recipeId);
-        await deleteDoc(docRef);
-    } catch (error: any) {
-        throw new Error(`Failed to delete saved recipe: ${error.message}`);
-    }
-}
-
-export async function getSavedRecipes(userId: string): Promise<ExploreRecipe[]> {
-    try {
-        const recipesRef = collection(db, 'users', userId, 'saved_recipes');
-        const snapshot = await getDocs(recipesRef);
-        return snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        })) as ExploreRecipe[];
-    } catch (error: any) {
-        throw new Error(`Failed to get saved recipes: ${error.message}`);
-    }
-}
