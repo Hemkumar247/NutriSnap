@@ -25,6 +25,10 @@ function getAI(): GoogleGenAI {
 async function withRetry<T>(fn: (ai: GoogleGenAI) => Promise<T>, maxRetries = API_KEYS.length): Promise<T> {
   let lastError: any;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
+    if (attempt > 0) {
+      // Wait 3 seconds between attempts to let rate limits reset
+      await new Promise(r => setTimeout(r, 3000));
+    }
     const client = getAI();
     try {
       return await fn(client);
@@ -33,7 +37,7 @@ async function withRetry<T>(fn: (ai: GoogleGenAI) => Promise<T>, maxRetries = AP
       const status = err?.status ?? err?.httpStatusCode ?? err?.code;
       console.warn(`[gemini] Key #${(keyIndex - 1) % aiClients.length} failed (status=${status}), attempt ${attempt + 1}/${maxRetries}`);
       if (status === 429 || status === 'RESOURCE_EXHAUSTED') {
-        continue; // try next key
+        continue; // try next key after delay
       }
       throw err; // non-rate-limit error, don't retry
     }
@@ -42,6 +46,83 @@ async function withRetry<T>(fn: (ai: GoogleGenAI) => Promise<T>, maxRetries = AP
 }
 
 const DEFAULT_MODEL = 'gemini-2.0-flash';
+
+/**
+ * Looks up macronutrients for a food item from USDA FoodData Central.
+ * Returns calories, protein, carbs, fat per 100g.
+ * Falls back to Gemini estimates if USDA has no match.
+ */
+async function lookupUSDANutrition(foodName: string): Promise<{
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  source: 'usda' | 'ai_estimate';
+} | null> {
+  try {
+    const query = encodeURIComponent(foodName);
+    const apiKey = process.env.USDA_API_KEY;
+    if (!apiKey) return null;
+
+    const res = await fetch(
+      `https://api.nal.usda.gov/fdc/v1/foods/search?query=${query}&api_key=${apiKey}&dataType=Foundation,SR%20Legacy&pageSize=1`
+    );
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const food = data.foods?.[0];
+    if (!food) return null;
+
+    const nutrients = food.foodNutrients as Array<{ nutrientName: string; value: number }>;
+    const get = (name: string) => nutrients.find(n => n.nutrientName === name)?.value ?? 0;
+
+    return {
+      calories: get('Energy'),
+      protein: get('Protein'),
+      carbs: get('Carbohydrate, by difference'),
+      fat: get('Total lipid (fat)'),
+      source: 'usda',
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Enhances an AnalysisResult by looking up accurate USDA macros for each detected item
+ * and scaling them to match the portion size estimated by Gemini.
+ */
+async function enhanceWithUSDA(result: AnalysisResult): Promise<AnalysisResult> {
+  let totalCal = 0, totalPro = 0, totalCarb = 0, totalFat = 0;
+
+  for (const item of result.detectedItems) {
+    const usda = await lookupUSDANutrition(item.foodName);
+    if (usda && usda.calories > 0) {
+      // Scale USDA per-100g data to match Gemini's estimated portion size
+      const estimatedGrams = (item.nutrition.calories / usda.calories) * 100;
+      item.nutrition = {
+        calories: Math.round(usda.calories * (estimatedGrams / 100)),
+        protein: Math.round(usda.protein * (estimatedGrams / 100)),
+        carbs: Math.round(usda.carbs * (estimatedGrams / 100)),
+        fat: Math.round(usda.fat * (estimatedGrams / 100)),
+      };
+    }
+    totalCal += item.nutrition.calories;
+    totalPro += item.nutrition.protein;
+    totalCarb += item.nutrition.carbs;
+    totalFat += item.nutrition.fat;
+  }
+
+  // Recalculate accurate meal totals
+  result.nutrition = {
+    calories: Math.round(totalCal),
+    protein: Math.round(totalPro),
+    carbs: Math.round(totalCarb),
+    fat: Math.round(totalFat),
+  };
+
+  return result;
+}
 
 /**
  * Schema for overall meal analysis from images or text.
@@ -224,7 +305,8 @@ export async function analyzeImageServer(
     }
   }));
 
-  return JSON.parse(response.text || '{}');
+  const result: AnalysisResult = JSON.parse(response.text || '{}');
+  return enhanceWithUSDA(result);
 }
 
 export async function analyzeTextServer(
@@ -245,7 +327,8 @@ export async function analyzeTextServer(
     }
   }));
 
-  return JSON.parse(response.text || '{}');
+  const result: AnalysisResult = JSON.parse(response.text || '{}');
+  return enhanceWithUSDA(result);
 }
 
 export async function generateMealPlanServer(preferences: MealPlanPreferences, goals: NutritionInfo, feedback?: string): Promise<MealPlan> {

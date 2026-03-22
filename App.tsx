@@ -4,10 +4,6 @@ import { ImageUploader } from './components/ImageUploader';
 import { NutritionDisplay } from './components/NutritionDisplay';
 import { DailyTracker } from './components/DailyTracker';
 import * as apiClient from './services/apiClient';
-import * as dbService from './services/dbService';
-import { auth } from './lib/firebase/client';
-import { onAuthStateChanged } from 'firebase/auth';
-import { useRouter } from 'next/navigation';
 import type { AnalysisResult, DailyLogItem, NutritionInfo, AppView, MealPlanPreferences, MealPlan, UserProfile, AppSettings } from './types';
 import { Spinner } from './components/Spinner';
 import { ResetIcon, LightbulbIcon } from './components/IconComponents';
@@ -36,8 +32,8 @@ const DEFAULT_PROFILE: UserProfile = {
   name: 'Hem Kumar',
   age: 30,
   gender: 'male',
-  height: 175, // cm
-  weight: 70, // kg
+  height: 175,
+  weight: 70,
   activityLevel: 'moderate'
 };
 
@@ -54,8 +50,6 @@ const App: React.FC = () => {
   const [dailyLog, setDailyLog] = useState<DailyLogItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-  const router = useRouter();
 
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [editingItem, setEditingItem] = useState<DailyLogItem | null>(null);
@@ -68,97 +62,123 @@ const App: React.FC = () => {
   const [dietMode, setDietMode] = useState<DietMode>('maintenance');
   const [dailyGoals, setDailyGoals] = useState<NutritionInfo>(PRESET_GOALS.maintenance);
   
-  // Water intake state
   const [waterIntake, setWaterIntake] = useState<number>(0);
-  const [waterGoal, setWaterGoal] = useState<number>(2500); // Default 2.5L
+  const [waterGoal, setWaterGoal] = useState<number>(2500);
 
-  // Modal States
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [isReportOpen, setIsReportOpen] = useState<boolean>(false);
   const [isClearDataConfirmOpen, setIsClearDataConfirmOpen] = useState(false);
   
-  // Side Menu State
   const [isMenuCollapsed, setIsMenuCollapsed] = useState<boolean>(true);
   const [activeView, setActiveView] = useState<AppView>('dashboard');
 
-  // Meal Plan State
   const [mealPlanPreferences, setMealPlanPreferences] = useState<MealPlanPreferences | null>(null);
   const [mealPlan, setMealPlan] = useState<MealPlan | null>(null);
 
-   // Profile & Settings State
   const [userProfile, setUserProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
 
   const isInitialLoad = useRef(true);
-
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) { router.push('/login'); return; }
-      setUserId(user.uid);
-      const today = new Date().toISOString().split('T')[0];
-      try {
-        const [log, settings, profile, water, mealPrefs, savedRecs, lastPlan] = await Promise.all([
-          dbService.getTodayLog(user.uid),
-          dbService.getSettings(user.uid),
-          dbService.getUserProfile(user.uid),
-          dbService.getWaterLog(user.uid, today),
-          dbService.getMealPlanPreferences(user.uid),
-          dbService.getSavedRecipes(user.uid),
-          dbService.getLastMealPlan(user.uid),
-        ]);
-        if (log.length) setDailyLog(log);
-        if (settings) {
-          setAppSettings({ theme: settings.theme, units: settings.units });
-          setDietMode(settings.dietMode as any);
-          setDailyGoals(settings.goals);
-          document.documentElement.className = settings.theme;
-        }
-        if (profile) setUserProfile(profile);
-        if (water) { setWaterIntake(water.intake); setWaterGoal(water.goal); }
-        if (mealPrefs) setMealPlanPreferences(mealPrefs);
-        // if (savedRecs.length) setSavedRecipes(savedRecs); // Not in current state, ignoring
-        if (lastPlan) setMealPlan(lastPlan.plan);
-      } catch (err) {
-        console.error('Failed to load user data:', err);
-      } finally {
-        isInitialLoad.current = false;
+    try {
+      const savedLog = localStorage.getItem('nutrisnap_log');
+      if (savedLog) {
+        const parsedLog = JSON.parse(savedLog).map((item: any) => ({
+          ...item,
+          timestamp: new Date(item.timestamp),
+        }));
+        setDailyLog(parsedLog);
       }
-    });
-    return () => unsubscribe();
-  }, [router]);
+
+      const savedWater = localStorage.getItem('nutrisnap_water');
+      if (savedWater) {
+        const { intake, date, goal } = JSON.parse(savedWater);
+        const today = new Date().toISOString().split('T')[0];
+        if (date === today) {
+          setWaterIntake(intake);
+          setWaterGoal(goal || 2500);
+        } else {
+          localStorage.removeItem('nutrisnap_water');
+        }
+      }
+
+      const savedMode = localStorage.getItem('nutrisnap_diet_mode') as DietMode | null;
+      if (savedMode && ['maintenance', 'loss', 'gain'].includes(savedMode)) {
+        setDietMode(savedMode);
+        setDailyGoals(PRESET_GOALS[savedMode]);
+      }
+      
+      const savedGoals = localStorage.getItem('nutrisnap_custom_goals');
+      if (savedGoals) {
+        setDailyGoals(JSON.parse(savedGoals));
+      }
+
+      const savedPrefs = localStorage.getItem('nutrisnap_meal_prefs');
+      if (savedPrefs) {
+        setMealPlanPreferences(JSON.parse(savedPrefs));
+      }
+
+      const savedProfile = localStorage.getItem('nutrisnap_profile');
+      if (savedProfile) {
+        setUserProfile(JSON.parse(savedProfile));
+      }
+
+      const savedSettings = localStorage.getItem('nutrisnap_settings');
+      if (savedSettings) {
+        setAppSettings(JSON.parse(savedSettings));
+      }
+      
+    } catch (e) {
+      console.error("Failed to load data from localStorage", e);
+    } finally {
+      isInitialLoad.current = false;
+    }
+  }, []);
 
   useEffect(() => {
+    if (!isInitialLoad.current) {
+      localStorage.setItem('nutrisnap_log', JSON.stringify(dailyLog));
+    }
   }, [dailyLog]);
 
   useEffect(() => {
-    if (!isInitialLoad.current && userId) {
-      const today = new Date().toISOString().split('T')[0];
-      dbService.upsertWaterLog(userId, today, waterIntake, waterGoal).catch(console.error);
+    if (!isInitialLoad.current) {
+      const waterData = {
+        intake: waterIntake,
+        goal: waterGoal,
+        date: new Date().toISOString().split('T')[0]
+      };
+      localStorage.setItem('nutrisnap_water', JSON.stringify(waterData));
     }
-  }, [waterIntake, waterGoal, userId]);
+  }, [waterIntake, waterGoal]);
 
   useEffect(() => {
-    if (!isInitialLoad.current && mealPlanPreferences && userId) {
-      dbService.upsertMealPlanPreferences(userId, mealPlanPreferences).catch(console.error);
+    if (!isInitialLoad.current && mealPlanPreferences) {
+      localStorage.setItem('nutrisnap_meal_prefs', JSON.stringify(mealPlanPreferences));
     }
-  }, [mealPlanPreferences, userId]);
+  }, [mealPlanPreferences]);
 
   useEffect(() => {
-    if (!isInitialLoad.current && userId) {
-      dbService.upsertUserProfile(userId, userProfile).catch(console.error);
+    try {
+      localStorage.setItem('nutrisnap_profile', JSON.stringify(userProfile));
+    } catch (e) {
+      console.error("Failed to save profile to localStorage", e);
     }
-  }, [userProfile, userId]);
+  }, [userProfile]);
 
   useEffect(() => {
-    if (!isInitialLoad.current && userId) {
-      dbService.upsertSettings(userId, { ...appSettings, dietMode, goals: dailyGoals }).catch(console.error);
+    try {
+      localStorage.setItem('nutrisnap_settings', JSON.stringify(appSettings));
       if (appSettings.theme === 'dark') {
         document.documentElement.classList.add('dark');
       } else {
         document.documentElement.classList.remove('dark');
       }
+    } catch (e) {
+      console.error("Failed to save settings to localStorage", e);
     }
-  }, [appSettings, dietMode, dailyGoals, userId]);
+  }, [appSettings]);
+
 
   const handleImageSelect = (file: File) => {
     setImageFile(file);
@@ -203,9 +223,6 @@ const App: React.FC = () => {
     try {
       const result = await apiClient.analyzeImage(imageFile, remainingGoals, textInput);
       setAnalysis(result);
-      if (result.imageUrl) {
-        setImageUrl(result.imageUrl);
-      }
       soundService.play('success');
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred during analysis. Please try again.');
@@ -235,33 +252,19 @@ const App: React.FC = () => {
   }, [textInput, remainingGoals]);
   
   const handleAddLogItem = (item: AnalysisResult, url?: string) => {
-    const tempId = new Date().toISOString();
     const newItem: DailyLogItem = {
       ...item,
-      id: tempId,
+      id: new Date().toISOString(),
       timestamp: new Date(),
-      imageUrl: (item as any).imageUrl ?? url,
+      imageUrl: url,
     };
-
-    if (userId) {
-      dbService.addLogEntry(userId, {
-        foodName: item.foodName,
-        nutrition: item.nutrition,
-        alternatives: item.alternatives,
-        detectedItems: item.detectedItems,
-        imageUrl: (item as any).imageUrl ?? url,
-      }).then(savedEntry => {
-        setDailyLog(prevLog => prevLog.map(l => l.id === newItem.id ? savedEntry : l));
-      }).catch(console.error);
-    }
-
     setDailyLog(prevLog => [newItem, ...prevLog]);
     soundService.play('log');
     handleReset();
   };
   
   const handleAddManualMeal = (data: { foodName: string; nutrition: NutritionInfo }) => {
-    const newItem: DailyLogItem = {
+    const newMeal: DailyLogItem = {
       id: new Date().toISOString(),
       timestamp: new Date(),
       foodName: data.foodName,
@@ -269,19 +272,7 @@ const App: React.FC = () => {
       alternatives: [],
       detectedItems: [],
     };
-
-    if (userId) {
-      dbService.addLogEntry(userId, {
-        foodName: data.foodName,
-        nutrition: data.nutrition,
-        alternatives: [],
-        detectedItems: [],
-      }).then(savedEntry => {
-        setDailyLog(prevLog => prevLog.map(l => l.id === newItem.id ? savedEntry : l));
-      }).catch(console.error);
-    }
-
-    setDailyLog(prevLog => [newItem, ...prevLog]);
+    setDailyLog(prevLog => [newMeal, ...prevLog]);
     setIsAddMealModalOpen(false);
     soundService.play('log');
   };
@@ -294,26 +285,14 @@ const App: React.FC = () => {
 
   const handleSaveEdit = (updatedItem: DailyLogItem) => {
     setDailyLog(prev => prev.map(item => item.id === updatedItem.id ? updatedItem : item));
-    if (userId) {
-      dbService.updateLogEntry(userId, updatedItem.id, updatedItem.nutrition).catch(console.error);
-    }
     setIsEditModalOpen(false);
     setEditingItem(null);
     soundService.play('success');
   };
   
   const handleDeleteItem = (itemId: string) => {
-    const item = dailyLog.find(l => l.id === itemId);
-    setDailyLog(prev => prev.filter(i => i.id !== itemId));
+    setDailyLog(prev => prev.filter(item => item.id !== itemId));
     soundService.play('stop');
-    if (userId && item) {
-      if (item.imageUrl) {
-        import('./services/storageService').then(({ deleteFoodImage }) => {
-          deleteFoodImage(item.imageUrl!);
-        });
-      }
-      dbService.deleteLogEntry(userId, itemId).catch(console.error);
-    }
   };
   
   const handleViewDetails = (item: DailyLogItem) => {
@@ -326,21 +305,14 @@ const App: React.FC = () => {
     setDietMode(mode);
     const newGoals = PRESET_GOALS[mode];
     setDailyGoals(newGoals);
-    if (userId) {
-      dbService.upsertSettings(userId, {
-        ...appSettings, dietMode: mode, goals: newGoals
-      }).catch(console.error);
-    }
+    localStorage.setItem('nutrisnap_diet_mode', mode);
+    localStorage.removeItem('nutrisnap_custom_goals');
     soundService.play('click');
   };
   
   const handleUpdateGoals = (newGoals: NutritionInfo) => {
     setDailyGoals(newGoals);
-    if (userId) {
-      dbService.upsertSettings(userId, {
-        ...appSettings, dietMode, goals: newGoals
-      }).catch(console.error);
-    }
+    localStorage.setItem('nutrisnap_custom_goals', JSON.stringify(newGoals));
     soundService.play('success');
   };
 
@@ -422,16 +394,20 @@ const App: React.FC = () => {
   const handleClearAllData = () => {
     setDailyLog([]);
     setWaterIntake(0);
-    setAnalysis(null);
-    setImageFile(null);
-    setImageUrl(null);
-    setIsClearDataConfirmOpen(false);
-  };
+    setMealPlanPreferences(null);
+    setMealPlan(null);
+    setDailyGoals(PRESET_GOALS.maintenance);
+    setDietMode('maintenance');
+    setUserProfile(DEFAULT_PROFILE);
+    setAppSettings(DEFAULT_SETTINGS);
 
-  const handleSignOut = async () => {
-    await fetch('/api/auth/signout', { method: 'POST', credentials: 'include' });
-    await auth.signOut();
-    router.push('/login');
+    Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('nutrisnap_')) {
+            localStorage.removeItem(key);
+        }
+    });
+
+    setIsClearDataConfirmOpen(false);
   };
 
   const analysisSectionRef = useRef<HTMLDivElement>(null);
@@ -473,7 +449,6 @@ const App: React.FC = () => {
             soundService.play('click');
         }}
         userName={userProfile.name}
-        onSignOut={handleSignOut}
       />
       
       <div className={`transition-all duration-300 ease-in-out ${isMenuCollapsed ? 'pl-20' : 'pl-64'}`}>
@@ -487,6 +462,7 @@ const App: React.FC = () => {
             {activeView === 'dashboard' && (
               <main className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                   <div className="lg:col-span-2 space-y-8">
+                    {/* State 1: Uploader */}
                     {!imageUrl && !showAnalysisView && (
                         <ImageUploader 
                             onImageSelect={handleImageSelect} 
@@ -496,6 +472,7 @@ const App: React.FC = () => {
                         />
                     )}
 
+                    {/* State 2: Image Preview + Optional Description */}
                     {imageUrl && !showAnalysisView && (
                         <div className="corner-box animate-fade-in" ref={analysisSectionRef}>
                             <div className="relative mb-4">
@@ -530,6 +507,7 @@ const App: React.FC = () => {
                         </div>
                     )}
 
+                    {/* State 3: Loading, Error, or Results */}
                     {showAnalysisView && (
                         <div className="corner-box animate-fade-in" ref={analysisSectionRef}>
                             {isLoading ? (
@@ -539,11 +517,11 @@ const App: React.FC = () => {
                                 </div>
                             ) : error ? (
                                 <div className="text-center py-8">
-                                    <div className={`p-4 rounded-xl mb-6 flex items-center gap-3 animate-shake ${error.includes('limit') ? 'bg-orange-500/10 border border-orange-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
-                                        <div className={error.includes('limit') ? 'text-orange-400' : 'text-red-400'}>
+                                    <div className={`p-4 rounded-xl mb-6 flex items-center gap-3 animate-shake ${error.includes('limit') || error.includes('overloaded') ? 'bg-orange-500/10 border border-orange-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
+                                        <div className={error.includes('limit') || error.includes('overloaded') ? 'text-orange-400' : 'text-red-400'}>
                                             <ResetIcon className="w-5 h-5" />
                                         </div>
-                                        <p className={`flex-grow font-medium ${error.includes('limit') ? 'text-orange-200' : 'text-red-200'}`}>{error}</p>
+                                        <p className={`flex-grow font-medium ${error.includes('limit') || error.includes('overloaded') ? 'text-orange-200' : 'text-red-200'}`}>{error}</p>
                                         <button onClick={handleReset} className="text-slate-400 hover:text-white transition-colors">
                                             <ResetIcon className="w-4 h-4" />
                                         </button>
@@ -616,6 +594,7 @@ const App: React.FC = () => {
                     )}
                   </div>
 
+                  {/* Right Sidebar - Daily Tracker */}
                   <aside className="lg:col-span-1">
                   <DailyTracker 
                       dailyLog={dailyLog}
@@ -668,12 +647,12 @@ const App: React.FC = () => {
                     onUpdateSettings={handleUpdateSettings}
                     onExportData={handleExportData}
                     onClearData={() => setIsClearDataConfirmOpen(true)}
-                    onSignOut={handleSignOut}
                 />
             )}
         </div>
       </div>
 
+       {/* Modals */}
       {isEditModalOpen && editingItem && (
         <EditLogModal 
           item={editingItem}
