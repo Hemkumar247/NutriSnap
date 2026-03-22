@@ -1,6 +1,12 @@
-// Placeholder — GET ephemeral Gemini token
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getEphemeralLiveToken } from '@/lib/geminiServer';
 
-export async function GET() {
-  return NextResponse.json({ error: 'Not implemented' }, { status: 501 });
+export async function GET(request: NextRequest) {
+  try {
+    const token = await getEphemeralLiveToken();
+    return NextResponse.json({ token }, { status: 200 });
+  } catch (err: any) {
+    console.error('[/api/live-token] ERROR:', err.message);
+    return NextResponse.json({ error: 'Could not create voice session token.' }, { status: 500 });
+  }
 }

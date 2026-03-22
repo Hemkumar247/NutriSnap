@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { MealPlan, MealPlanPreferences, NutritionInfo, DailyMealPlan } from '../types';
-import { generateMealPlan } from '../services/geminiService';
+import { generateMealPlan } from '@/services/apiClient';
 import { Spinner } from './Spinner';
 import { BrainIcon, CalorieIcon, CarbIcon, FatIcon, ProteinIcon } from './IconComponents';
 import { soundService } from '../services/soundService';

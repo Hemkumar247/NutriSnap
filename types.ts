@@ -1,4 +1,3 @@
-import { LiveServerMessage, LiveSession } from "@google/genai";
 
 export interface NutritionInfo {
   calories: number;
@@ -28,24 +27,6 @@ export interface DailyLogItem extends AnalysisResult {
   imageUrl?: string;
 }
 
-export interface GroundingSource {
-  uri: string;
-  title: string;
-}
-
-export interface ChatMessage {
-  role: 'user' | 'model';
-  content: string;
-  sources?: GroundingSource[];
-}
-
-export interface ChatContext {
-  goals: NutritionInfo;
-  totals: NutritionInfo;
-  log: DailyLogItem[];
-  waterIntake: number;
-  waterGoal: number;
-}
 
 export interface MealPlanPreferences {
   favBreakfast: string;
@@ -77,23 +58,6 @@ export interface MealPlan {
   plan: DailyMealPlan[];
 }
 
-// Types for the new Explore feature
-export interface ExploreRecipe {
-  id: string;
-  name: string;
-  description: string;
-  nutrition: NutritionInfo;
-  ingredients: string[];
-  instructions: string[];
-  imageUrl?: string; // Web URL or Base64 image string
-  imageIsGenerating?: boolean;
-}
-
-export interface ExploreCategory {
-  categoryTitle: string;
-  recipes: ExploreRecipe[];
-}
-
 
 export interface UserProfile {
   name: string;
@@ -109,4 +73,9 @@ export interface AppSettings {
   units: 'metric' | 'imperial';
 }
 
-export type AppView = 'dashboard' | 'analysis' | 'mealPlan' | 'explore' | 'saved' | 'profile' | 'settings';
+export type AppView = 'dashboard' | 'analysis' | 'mealPlan' | 'profile' | 'settings';
+
+export interface ChatContext { [key: string]: any; }
+export interface GroundingSource { [key: string]: any; }
+export interface ExploreRecipe { id: string; name: string; description: string; calories: number; protein: number; carbs: number; fat: number; imageUrl?: string; savedAt?: Date; }
+export interface ExploreCategory { title: string; description: string; recipes: ExploreRecipe[]; }

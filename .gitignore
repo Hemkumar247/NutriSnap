@@ -1,7 +1,8 @@
 node_modules
 .next/
 out/
-# Local env files — never commit (includes .env.local)
+# Local env files — never commit
+.env
 .env.local
 .env*.local
 .vercel

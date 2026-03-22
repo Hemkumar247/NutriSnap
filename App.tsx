@@ -3,13 +3,11 @@ import { SideMenu } from './components/SideMenu';
 import { ImageUploader } from './components/ImageUploader';
 import { NutritionDisplay } from './components/NutritionDisplay';
 import { DailyTracker } from './components/DailyTracker';
-import { analyzeMeal, analyzeMealFromText, getChatResponse } from './services/geminiService';
-import type { AnalysisResult, DailyLogItem, NutritionInfo, ChatMessage, ChatContext, AppView, MealPlanPreferences, MealPlan, ExploreRecipe, UserProfile, AppSettings } from './types';
+import * as apiClient from './services/apiClient';
+import type { AnalysisResult, DailyLogItem, NutritionInfo, AppView, MealPlanPreferences, MealPlan, UserProfile, AppSettings } from './types';
 import { Spinner } from './components/Spinner';
 import { ResetIcon, LightbulbIcon } from './components/IconComponents';
 import { EditLogModal } from './components/EditLogModal';
-import { ChatButton } from './components/ChatButton';
-import { ChatAssistant } from './components/ChatAssistant';
 import { HistoryModal } from './components/HistoryModal';
 import { AddMealModal } from './components/AddMealModal';
 import { WeeklyReportModal } from './components/WeeklyReportModal';
@@ -17,8 +15,6 @@ import { MealDetailModal } from './components/MealDetailModal';
 import { soundService } from './services/soundService';
 import { DeepAnalysisPage } from './components/DeepAnalysisPage';
 import { MealPlanGeneratorPage } from './components/MealPlanGeneratorPage';
-import { ExplorePage } from './components/ExplorePage';
-import { SavedRecipesPage } from './components/SavedRecipesPage';
 import { ProfilePage } from './components/ProfilePage';
 import { SettingsPage } from './components/SettingsPage';
 import { ConfirmationModal } from './components/ConfirmationModal';
@@ -36,8 +32,8 @@ const DEFAULT_PROFILE: UserProfile = {
   name: 'Hem Kumar',
   age: 30,
   gender: 'male',
-  height: 175, // cm
-  weight: 70, // kg
+  height: 175,
+  weight: 70,
   activityLevel: 'moderate'
 };
 
@@ -66,42 +62,25 @@ const App: React.FC = () => {
   const [dietMode, setDietMode] = useState<DietMode>('maintenance');
   const [dailyGoals, setDailyGoals] = useState<NutritionInfo>(PRESET_GOALS.maintenance);
   
-  // Water intake state
   const [waterIntake, setWaterIntake] = useState<number>(0);
-  const [waterGoal, setWaterGoal] = useState<number>(2500); // Default 2.5L
+  const [waterGoal, setWaterGoal] = useState<number>(2500);
 
-  // Chat state
-  const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
-    { role: 'model', content: "Hello! I'm NutriSnap. How can I help you with your nutrition today? Ask me about your goals, logged meals, or for meal ideas!" }
-  ]);
-  const [isChatLoading, setIsChatLoading] = useState<boolean>(false);
-  
-  // Modal States
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [isReportOpen, setIsReportOpen] = useState<boolean>(false);
   const [isClearDataConfirmOpen, setIsClearDataConfirmOpen] = useState(false);
   
-  // Side Menu State
   const [isMenuCollapsed, setIsMenuCollapsed] = useState<boolean>(true);
   const [activeView, setActiveView] = useState<AppView>('dashboard');
 
-  // Meal Plan State
   const [mealPlanPreferences, setMealPlanPreferences] = useState<MealPlanPreferences | null>(null);
   const [mealPlan, setMealPlan] = useState<MealPlan | null>(null);
 
-  // Saved Recipes State
-  const [savedRecipes, setSavedRecipes] = useState<ExploreRecipe[]>([]);
-
-  // Profile & Settings State
   const [userProfile, setUserProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
 
-
-  // Load data from localStorage on initial render
+  const isInitialLoad = useRef(true);
   useEffect(() => {
     try {
-      // Load Food Log
       const savedLog = localStorage.getItem('nutrisnap_log');
       if (savedLog) {
         const parsedLog = JSON.parse(savedLog).map((item: any) => ({
@@ -111,7 +90,6 @@ const App: React.FC = () => {
         setDailyLog(parsedLog);
       }
 
-      // Load Water Intake (and reset if it's a new day)
       const savedWater = localStorage.getItem('nutrisnap_water');
       if (savedWater) {
         const { intake, date, goal } = JSON.parse(savedWater);
@@ -120,92 +98,65 @@ const App: React.FC = () => {
           setWaterIntake(intake);
           setWaterGoal(goal || 2500);
         } else {
-          // It's a new day, reset water intake
           localStorage.removeItem('nutrisnap_water');
         }
       }
 
-      // Load Diet Mode
       const savedMode = localStorage.getItem('nutrisnap_diet_mode') as DietMode | null;
       if (savedMode && ['maintenance', 'loss', 'gain'].includes(savedMode)) {
         setDietMode(savedMode);
         setDailyGoals(PRESET_GOALS[savedMode]);
       }
       
-      // Load Custom Goals
       const savedGoals = localStorage.getItem('nutrisnap_custom_goals');
       if (savedGoals) {
         setDailyGoals(JSON.parse(savedGoals));
       }
 
-      // Load Meal Plan Preferences
       const savedPrefs = localStorage.getItem('nutrisnap_meal_prefs');
       if (savedPrefs) {
         setMealPlanPreferences(JSON.parse(savedPrefs));
       }
-      
-      // Load Saved Recipes
-      const savedRecipesData = localStorage.getItem('nutrisnap_saved_recipes');
-      if (savedRecipesData) {
-        setSavedRecipes(JSON.parse(savedRecipesData));
-      }
 
-      // Load Profile
       const savedProfile = localStorage.getItem('nutrisnap_profile');
       if (savedProfile) {
         setUserProfile(JSON.parse(savedProfile));
       }
 
-      // Load Settings
       const savedSettings = localStorage.getItem('nutrisnap_settings');
       if (savedSettings) {
         setAppSettings(JSON.parse(savedSettings));
       }
-
+      
     } catch (e) {
       console.error("Failed to load data from localStorage", e);
+    } finally {
+      isInitialLoad.current = false;
     }
   }, []);
 
-  // Save data to localStorage whenever it changes
   useEffect(() => {
-    try {
+    if (!isInitialLoad.current) {
       localStorage.setItem('nutrisnap_log', JSON.stringify(dailyLog));
-    } catch (e) {
-      console.error("Failed to save log to localStorage", e);
     }
   }, [dailyLog]);
 
   useEffect(() => {
-    try {
+    if (!isInitialLoad.current) {
       const waterData = {
         intake: waterIntake,
         goal: waterGoal,
         date: new Date().toISOString().split('T')[0]
       };
       localStorage.setItem('nutrisnap_water', JSON.stringify(waterData));
-    } catch (e) {
-      console.error("Failed to save water intake to localStorage", e);
     }
   }, [waterIntake, waterGoal]);
 
   useEffect(() => {
-    try {
-      if (mealPlanPreferences) {
-        localStorage.setItem('nutrisnap_meal_prefs', JSON.stringify(mealPlanPreferences));
-      }
-    } catch (e) {
-      console.error("Failed to save meal preferences to localStorage", e);
+    if (!isInitialLoad.current && mealPlanPreferences) {
+      localStorage.setItem('nutrisnap_meal_prefs', JSON.stringify(mealPlanPreferences));
     }
   }, [mealPlanPreferences]);
-
-  useEffect(() => {
-    try {
-        localStorage.setItem('nutrisnap_saved_recipes', JSON.stringify(savedRecipes));
-    } catch (e) {
-        console.error("Failed to save recipes to localStorage", e);
-    }
-  }, [savedRecipes]);
 
   useEffect(() => {
     try {
@@ -218,7 +169,6 @@ const App: React.FC = () => {
   useEffect(() => {
     try {
       localStorage.setItem('nutrisnap_settings', JSON.stringify(appSettings));
-      // Apply theme
       if (appSettings.theme === 'dark') {
         document.documentElement.classList.add('dark');
       } else {
@@ -271,18 +221,11 @@ const App: React.FC = () => {
     setError(null);
     soundService.play('start');
     try {
-      const result = await analyzeMeal(imageFile, remainingGoals, textInput);
+      const result = await apiClient.analyzeImage(imageFile, remainingGoals, textInput);
       setAnalysis(result);
       soundService.play('success');
     } catch (err: any) {
-      const errorMessage = (err.message || '').toLowerCase();
-      if (errorMessage.includes('parse') || errorMessage.includes('json')) {
-        setError("The AI had trouble analyzing the meal's photo. This can happen with unusual angles or lighting. Please try again with a clearer picture.");
-      } else if (errorMessage.includes('api key')) {
-        setError("There seems to be a configuration issue. Please contact support.");
-      } else {
-        setError('An unexpected error occurred during analysis. Please check your connection and try again.');
-      }
+      setError(err.message || 'An unexpected error occurred during analysis. Please try again.');
       soundService.play('stop');
     } finally {
       setIsLoading(false);
@@ -297,11 +240,11 @@ const App: React.FC = () => {
     setImageUrl(null);
     soundService.play('start');
     try {
-      const result = await analyzeMealFromText(textInput, remainingGoals);
+      const result = await apiClient.analyzeText(textInput, remainingGoals);
       setAnalysis(result);
       soundService.play('success');
     } catch (err: any) {
-      setError('An unexpected error occurred during text analysis. Please try rephrasing your description.');
+      setError(err.message || 'An unexpected error occurred during text analysis. Please try rephrasing your description.');
       soundService.play('stop');
     } finally {
       setIsLoading(false);
@@ -317,7 +260,7 @@ const App: React.FC = () => {
     };
     setDailyLog(prevLog => [newItem, ...prevLog]);
     soundService.play('log');
-    handleReset(); // Clear the analysis section after logging
+    handleReset();
   };
   
   const handleAddManualMeal = (data: { foodName: string; nutrition: NutritionInfo }) => {
@@ -334,7 +277,6 @@ const App: React.FC = () => {
     soundService.play('log');
   };
 
-  // Edit/Delete handlers
   const handleOpenEditModal = (item: DailyLogItem) => {
     setEditingItem(item);
     setIsEditModalOpen(true);
@@ -364,7 +306,7 @@ const App: React.FC = () => {
     const newGoals = PRESET_GOALS[mode];
     setDailyGoals(newGoals);
     localStorage.setItem('nutrisnap_diet_mode', mode);
-    localStorage.removeItem('nutrisnap_custom_goals'); // Remove custom goals when preset is chosen
+    localStorage.removeItem('nutrisnap_custom_goals');
     soundService.play('click');
   };
   
@@ -391,68 +333,20 @@ const App: React.FC = () => {
     soundService.play('success');
   };
   
-  const chatContext: ChatContext = useMemo(() => ({
-    goals: dailyGoals,
-    totals: totals,
-    log: dailyLog,
-    waterIntake,
-    waterGoal
-  }), [dailyGoals, totals, dailyLog, waterIntake, waterGoal]);
-
-
-  const handleSendMessage = useCallback(async (message: string) => {
-    setChatHistory(prev => [...prev, { role: 'user', content: message }]);
-    setIsChatLoading(true);
-
-    try {
-      const { text, sources } = await getChatResponse(message, chatContext);
-      setChatHistory(prev => [...prev, { role: 'model', content: text, sources }]);
-      soundService.play('received');
-    } catch (err) {
-      setChatHistory(prev => [...prev, { role: 'model', content: "Sorry, I encountered an error. Please try again." }]);
-      soundService.play('stop');
-    } finally {
-      setIsChatLoading(false);
-    }
-  }, [chatContext]);
-
-  const handleAddLiveChatTurn = useCallback((userMessage: string, modelMessage: string) => {
-    if (!userMessage && !modelMessage) return;
-    const newMessages: ChatMessage[] = [];
-    if (userMessage) newMessages.push({ role: 'user', content: userMessage });
-    if (modelMessage) newMessages.push({ role: 'model', content: modelMessage });
-    
-    setChatHistory(prev => [...prev, ...newMessages]);
-  }, []);
-  
   const handleViewChange = (view: AppView) => {
     setActiveView(view);
     soundService.play('click');
   }
-
-  const handleSaveRecipe = (recipe: ExploreRecipe) => {
-    setSavedRecipes(prev => {
-        if (prev.some(r => r.id === recipe.id)) return prev;
-        return [...prev, recipe];
-    });
-    soundService.play('success');
-  };
-
-  const handleUnsaveRecipe = (recipeId: string) => {
-      setSavedRecipes(prev => prev.filter(r => r.id !== recipeId));
-      soundService.play('stop');
-  };
 
   const handleUpdateProfile = (profile: UserProfile) => {
     setUserProfile(profile);
   };
   
   const handleRecalculateGoals = (profile: UserProfile) => {
-    // Mifflin-St Jeor Equation
     let bmr: number;
     if (profile.gender === 'male') {
         bmr = 10 * profile.weight + 6.25 * profile.height - 5 * profile.age + 5;
-    } else { // 'female' or 'other'
+    } else {
         bmr = 10 * profile.weight + 6.25 * profile.height - 5 * profile.age - 161;
     }
 
@@ -465,7 +359,6 @@ const App: React.FC = () => {
 
     const tdee = bmr * activityMultipliers[profile.activityLevel];
     
-    // Simple macro split: 40% carbs, 30% protein, 30% fat
     const calories = Math.round(tdee);
     const protein = Math.round((calories * 0.30) / 4);
     const carbs = Math.round((calories * 0.40) / 4);
@@ -486,7 +379,6 @@ const App: React.FC = () => {
       settings: appSettings,
       log: dailyLog,
       goals: dailyGoals,
-      savedRecipes: savedRecipes,
       mealPlanPreferences: mealPlanPreferences,
     };
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
@@ -500,10 +392,8 @@ const App: React.FC = () => {
   };
 
   const handleClearAllData = () => {
-    // Clear state
     setDailyLog([]);
     setWaterIntake(0);
-    setSavedRecipes([]);
     setMealPlanPreferences(null);
     setMealPlan(null);
     setDailyGoals(PRESET_GOALS.maintenance);
@@ -511,7 +401,6 @@ const App: React.FC = () => {
     setUserProfile(DEFAULT_PROFILE);
     setAppSettings(DEFAULT_SETTINGS);
 
-    // Clear localStorage
     Object.keys(localStorage).forEach(key => {
         if (key.startsWith('nutrisnap_')) {
             localStorage.removeItem(key);
@@ -535,8 +424,6 @@ const App: React.FC = () => {
       case 'dashboard': return 'NutriSnap';
       case 'analysis': return 'Deep Analysis';
       case 'mealPlan': return 'Meal Plan Generator';
-      case 'explore': return 'Explore Recipes';
-      case 'saved': return 'Saved Recipes';
       case 'profile': return 'User Profile';
       case 'settings': return 'Settings';
       default: return 'NutriSnap';
@@ -630,7 +517,15 @@ const App: React.FC = () => {
                                 </div>
                             ) : error ? (
                                 <div className="text-center py-8">
-                                    <p className="text-red-400 mb-4 bg-red-900/30 p-3 rounded-lg">{error}</p>
+                                    <div className={`p-4 rounded-xl mb-6 flex items-center gap-3 animate-shake ${error.includes('limit') || error.includes('overloaded') ? 'bg-orange-500/10 border border-orange-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
+                                        <div className={error.includes('limit') || error.includes('overloaded') ? 'text-orange-400' : 'text-red-400'}>
+                                            <ResetIcon className="w-5 h-5" />
+                                        </div>
+                                        <p className={`flex-grow font-medium ${error.includes('limit') || error.includes('overloaded') ? 'text-orange-200' : 'text-red-200'}`}>{error}</p>
+                                        <button onClick={handleReset} className="text-slate-400 hover:text-white transition-colors">
+                                            <ResetIcon className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                     <button 
                                         onClick={handleReset} 
                                         className="px-5 py-2.5 bg-cyan-500 text-white font-semibold rounded-full hover:bg-cyan-600 transition-all"
@@ -737,24 +632,6 @@ const App: React.FC = () => {
               />
             )}
 
-            {activeView === 'explore' && (
-                <ExplorePage
-                    log={dailyLog}
-                    preferences={mealPlanPreferences}
-                    savedRecipes={savedRecipes}
-                    onSaveRecipe={handleSaveRecipe}
-                    onUnsaveRecipe={handleUnsaveRecipe}
-                />
-            )}
-
-            {activeView === 'saved' && (
-                <SavedRecipesPage 
-                    recipes={savedRecipes} 
-                    onUnsaveRecipe={handleUnsaveRecipe}
-                    onSaveRecipe={handleSaveRecipe}
-                />
-            )}
-            
             {activeView === 'profile' && (
                 <ProfilePage 
                     profile={userProfile}
@@ -816,25 +693,6 @@ const App: React.FC = () => {
         message="This action is irreversible. All your logged meals, goals, and preferences will be permanently deleted."
       />
 
-      {/* Floating Action Button for Chat */}
-      <ChatButton onClick={() => {
-        setIsChatOpen(true);
-        soundService.play('start');
-      }} />
-
-      {/* Chat Assistant Modal */}
-      <ChatAssistant 
-        isOpen={isChatOpen}
-        onClose={() => {
-            setIsChatOpen(false);
-            soundService.play('stop');
-        }}
-        messages={chatHistory}
-        onSendMessage={handleSendMessage}
-        onAddLiveTurn={handleAddLiveChatTurn}
-        isLoading={isChatLoading}
-        chatContext={chatContext}
-      />
     </div>
   );
 };

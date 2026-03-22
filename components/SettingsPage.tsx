@@ -8,6 +8,7 @@ interface SettingsPageProps {
     onUpdateSettings: (settings: AppSettings) => void;
     onExportData: () => void;
     onClearData: () => void;
+    onSignOut?: () => void;
 }
 
 const ToggleSwitch: React.FC<{ checked: boolean; onChange: (checked: boolean) => void; label: string; }> = ({ checked, onChange, label }) => (
@@ -22,7 +23,7 @@ const ToggleSwitch: React.FC<{ checked: boolean; onChange: (checked: boolean) =>
     </div>
 );
 
-export const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onUpdateSettings, onExportData, onClearData }) => {
+export const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onUpdateSettings, onExportData, onClearData, onSignOut }) => {
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     
     const handleThemeChange = (isDark: boolean) => {
@@ -73,6 +74,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onUpdateSe
                     <button onClick={() => setIsConfirmOpen(true)} className="w-full text-center px-5 py-2.5 bg-red-900/40 border border-red-500/30 text-red-400 font-semibold rounded-full hover:bg-red-900/60 transition-all active:scale-95">
                         Clear All Data
                     </button>
+                    {onSignOut && (
+                        <button onClick={onSignOut} className="w-full text-center px-5 py-2.5 bg-slate-800 border border-slate-600 text-slate-200 font-semibold rounded-full hover:bg-slate-700 transition-all active:scale-95 mt-4">
+                            Sign Out
+                        </button>
+                    )}
                 </div>
             </div>
             
