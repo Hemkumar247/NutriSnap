@@ -6,7 +6,6 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '@/lib/firebase/client';
 import * as dbService from '@/services/dbService';
 import * as apiClient from '@/services/apiClient';
-import * as storageService from '@/services/storageService';
 
 import { SideMenu } from '@/components/SideMenu';
 import { ImageUploader } from '@/components/ImageUploader';
@@ -235,7 +234,7 @@ const DashboardPage: React.FC = () => {
       setAnalysis(result);
       soundService.play('success');
     } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred during analysis.');
+      setError(err.message || 'An unexpected error occurred during analysis. Please try again.');
       soundService.play('stop');
     } finally {
       setIsLoading(false);
@@ -254,7 +253,7 @@ const DashboardPage: React.FC = () => {
       setAnalysis(result);
       soundService.play('success');
     } catch (err: any) {
-      setError('An unexpected error occurred during text analysis.');
+      setError(err.message || 'An unexpected error occurred during text analysis. Please try again.');
       soundService.play('stop');
     } finally {
       setIsLoading(false);
@@ -327,7 +326,7 @@ const DashboardPage: React.FC = () => {
     try {
       const itemToDelete = dailyLog.find(i => i.id === itemId);
       if (itemToDelete?.imageUrl) {
-        storageService.deleteFoodImage(itemToDelete.imageUrl); // fire and forget
+        apiClient.deleteFoodImage(itemToDelete.imageUrl); // fire and forget
       }
       
       await dbService.deleteLogEntry(userId, itemId);
@@ -557,7 +556,15 @@ const DashboardPage: React.FC = () => {
                                 </div>
                             ) : error ? (
                                 <div className="text-center py-8">
-                                    <p className="text-red-400 mb-4 bg-red-900/30 p-3 rounded-lg">{error}</p>
+                                    <div className={`p-4 rounded-xl mb-6 flex items-center gap-3 animate-shake ${error.includes('limit') ? 'bg-orange-500/10 border border-orange-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
+                                        <div className={error.includes('limit') ? 'text-orange-400' : 'text-red-400'}>
+                                            <ResetIcon className="w-5 h-5" />
+                                        </div>
+                                        <p className={`flex-grow font-medium ${error.includes('limit') ? 'text-orange-200' : 'text-red-200'}`}>{error}</p>
+                                        <button onClick={handleReset} className="text-slate-400 hover:text-white transition-colors">
+                                            <ResetIcon className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                     <button onClick={handleReset} className="px-5 py-2.5 bg-cyan-500 text-white font-semibold rounded-full hover:bg-cyan-600 transition-all">
                                         Try Again
                                     </button>

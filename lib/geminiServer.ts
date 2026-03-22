@@ -12,7 +12,12 @@ import type {
  * Never exposed to the client.
  * Using @google/genai (v1.28.0+) pattern.
  */
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+const ai = new GoogleGenAI({ 
+  apiKey: process.env.GEMINI_API_KEY!,
+  vertexai: false 
+});
+
+const DEFAULT_MODEL = 'gemini-2.0-flash-lite';
 
 // --- JSON SCHEMAS ---
 
@@ -155,7 +160,7 @@ export async function analyzeImageServer(
   Focus on identifying primary macronutrients correctly for a nutrition tracking app.`;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-1.5-flash',
+    model: DEFAULT_MODEL,
     contents: [
       {
         role: 'user',
@@ -167,7 +172,7 @@ export async function analyzeImageServer(
     ],
     config: {
       responseMimeType: 'application/json',
-      responseSchema: analysisSchema as any
+      responseJsonSchema: analysisSchema as any
     }
   });
 
@@ -187,11 +192,11 @@ export async function analyzeTextServer(
   Assume average portion sizes unless specified.`;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-1.5-flash',
+    model: DEFAULT_MODEL,
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     config: {
       responseMimeType: 'application/json',
-      responseSchema: analysisSchema as any
+      responseJsonSchema: analysisSchema as any
     }
   });
 
@@ -221,11 +226,11 @@ export async function generateMealPlanServer(preferences: MealPlanPreferences, g
   Provide a varied, delicious, and balanced plan for 3 days.`;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-1.5-flash',
+    model: DEFAULT_MODEL,
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     config: {
       responseMimeType: 'application/json',
-      responseSchema: mealPlanSchema as any
+      responseJsonSchema: mealPlanSchema as any
     }
   });
 

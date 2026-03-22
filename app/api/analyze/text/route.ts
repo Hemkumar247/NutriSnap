@@ -35,7 +35,17 @@ export async function POST(request: NextRequest) {
     if (error.message === 'No session cookie' || error.message?.includes('session')) {
       return sendUnauthorized();
     }
+    
+    // Handle Gemini specific errors
+    if (error.status === 429 || error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED')) {
+      return NextResponse.json({ error: 'AI limit reached. Please try again in a few minutes.' }, { status: 429 });
+    }
+    
+    if (error.status === 401 || error.message?.includes('401') || error.message?.includes('API_KEY_INVALID')) {
+        return NextResponse.json({ error: 'Invalid AI configuration. Please check API keys.' }, { status: 401 });
+    }
+
     console.error('[/api/analyze/text]', error);
-    return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 });
+    return NextResponse.json({ error: 'An unexpected error occurred. Please try again later.' }, { status: 500 });
   }
 }

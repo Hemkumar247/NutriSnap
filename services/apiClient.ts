@@ -87,4 +87,16 @@ export async function generateMealPlan(
   });
 }
 
+/**
+ * Deletes a food image from storage via the secure API route.
+ */
+export async function deleteFoodImage(imageUrl: string): Promise<void> {
+    if (!imageUrl) return;
+    return fetchApi<void>('/api/storage/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl }),
+    });
+}
+
 
