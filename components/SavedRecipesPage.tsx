@@ -12,12 +12,16 @@ interface SavedRecipesPageProps {
 }
 
 const SavedRecipeCard: React.FC<{ recipe: ExploreRecipe, onSelect: () => void, onUnsave: () => void }> = ({ recipe, onSelect, onUnsave }) => {
+    const imageSrc = recipe.imageUrl
+        ? (recipe.imageUrl.startsWith('http') ? recipe.imageUrl : `data:image/jpeg;base64,${recipe.imageUrl}`)
+        : null;
+
     return (
         <div className="bg-slate-800/50 rounded-lg group transform transition-transform duration-300 shadow-lg hover:shadow-cyan-500/10 relative">
             <div className="cursor-pointer" onClick={onSelect}>
                 <div className="relative h-40 bg-slate-700 rounded-t-lg">
-                    {recipe.imageUrl ? (
-                        <img src={`data:image/jpeg;base64,${recipe.imageUrl}`} alt={recipe.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 rounded-t-lg"/>
+                    {imageSrc ? (
+                        <img src={imageSrc} alt={recipe.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 rounded-t-lg"/>
                     ) : (
                         <div className="w-full h-full flex items-center justify-center text-slate-500">
                            <FoodIcon className="w-12 h-12" />
@@ -26,7 +30,7 @@ const SavedRecipeCard: React.FC<{ recipe: ExploreRecipe, onSelect: () => void, o
                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent rounded-t-lg"></div>
                 </div>
                 <div className="p-4">
-                    <h4 className="font-bold text-slate-100 truncate">{recipe.name}</h4>
+                    <h4 className="font-bold text-yellow-300 truncate bg-yellow-500/10 px-2 py-1 rounded-md inline-block max-w-full">{recipe.name}</h4>
                     <p className="text-xs text-slate-400 h-8 overflow-hidden">{recipe.description}</p>
                 </div>
             </div>

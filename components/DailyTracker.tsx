@@ -36,11 +36,10 @@ const ProgressStat: React.FC<{
   gradient: string;
 }> = ({ label, current, goal, unit, icon, gradient }) => (
   <div>
-    <div className="flex justify-between items-center text-sm mb-1.5">
-        <span className="font-semibold text-slate-300 flex items-center">
-            {/* FIX: Merged existing icon className with new classes to prevent style override and fix type error. */}
-            {React.cloneElement(icon, { className: `${icon.props.className || ''} w-4 h-4 mr-2` })}
-            {label}
+    <div className="flex justify-between items-center gap-2 text-sm mb-1.5">
+        <span className="font-semibold text-slate-300 flex items-center gap-2 min-w-0">
+            {React.cloneElement(icon, { className: `${icon.props.className || ''} w-4 h-4 shrink-0` })}
+            <span className="truncate">{label}</span>
         </span>
         <span className="font-bold text-slate-100">
             {Math.round(current)} / {goal}{unit}

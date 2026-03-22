@@ -17,11 +17,12 @@ const NavItem: React.FC<{ label: string; onClick: () => void; children: React.Re
     const buttonContent = (
          <button
             onClick={onClick}
-            className={`flex items-center w-full p-3 rounded-lg transition-colors duration-200 ${isCollapsed ? 'justify-center' : ''} ${isActive ? 'bg-cyan-400/20 text-cyan-300 ring-1 ring-inset ring-cyan-400/50' : 'text-slate-400 hover:bg-cyan-400/10 hover:text-cyan-300'}`}
+            type="button"
+            className={`flex items-center w-full min-h-[2.75rem] p-3 rounded-lg transition-colors duration-200 ${isCollapsed ? 'justify-center' : 'justify-start gap-3'} ${isActive ? 'bg-cyan-400/20 text-cyan-300 ring-1 ring-inset ring-cyan-400/50' : 'text-slate-400 hover:bg-cyan-400/10 hover:text-cyan-300'}`}
             aria-label={label}
         >
-            {children}
-            <span className={`ml-4 whitespace-nowrap transition-opacity duration-200 ${isCollapsed ? 'opacity-0 hidden' : 'opacity-100'}`}>
+            <span className="inline-flex shrink-0 items-center justify-center">{children}</span>
+            <span className={`whitespace-nowrap transition-opacity duration-200 ${isCollapsed ? 'hidden' : ''}`}>
                 {label}
             </span>
         </button>

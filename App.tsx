@@ -6,7 +6,7 @@ import { DailyTracker } from './components/DailyTracker';
 import { analyzeMeal, analyzeMealFromText, getChatResponse } from './services/geminiService';
 import type { AnalysisResult, DailyLogItem, NutritionInfo, ChatMessage, ChatContext, AppView, MealPlanPreferences, MealPlan, ExploreRecipe, UserProfile, AppSettings } from './types';
 import { Spinner } from './components/Spinner';
-import { ResetIcon, LightbulbIcon, BrandLogoIcon } from './components/IconComponents';
+import { ResetIcon, LightbulbIcon } from './components/IconComponents';
 import { EditLogModal } from './components/EditLogModal';
 import { ChatButton } from './components/ChatButton';
 import { ChatAssistant } from './components/ChatAssistant';
@@ -73,7 +73,7 @@ const App: React.FC = () => {
   // Chat state
   const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
-    { role: 'model', content: "Hello! I'm Eat Well. How can I help you with your nutrition today? Ask me about your goals, logged meals, or for meal ideas!" }
+    { role: 'model', content: "Hello! I'm NutriSnap. How can I help you with your nutrition today? Ask me about your goals, logged meals, or for meal ideas!" }
   ]);
   const [isChatLoading, setIsChatLoading] = useState<boolean>(false);
   
@@ -532,14 +532,14 @@ const App: React.FC = () => {
   
   const getHeaderTitle = () => {
     switch(activeView) {
-      case 'dashboard': return 'Eat Well';
+      case 'dashboard': return 'NutriSnap';
       case 'analysis': return 'Deep Analysis';
       case 'mealPlan': return 'Meal Plan Generator';
       case 'explore': return 'Explore Recipes';
       case 'saved': return 'Saved Recipes';
       case 'profile': return 'User Profile';
       case 'settings': return 'Settings';
-      default: return 'Eat Well';
+      default: return 'NutriSnap';
     }
   };
 
@@ -566,9 +566,8 @@ const App: React.FC = () => {
       
       <div className={`transition-all duration-300 ease-in-out ${isMenuCollapsed ? 'pl-20' : 'pl-64'}`}>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <header className="flex items-center mb-8">
-              <BrandLogoIcon className="h-9 w-9 text-cyan-400 mr-3" />
-              <h1 className="text-2xl font-bold text-slate-100">
+            <header className="mb-8">
+              <h1 className="text-2xl font-bold text-slate-100 leading-tight">
                 {getHeaderTitle()}
               </h1>
             </header>
@@ -686,9 +685,9 @@ const App: React.FC = () => {
                                     </button>
                                 </div>
                                 <div className="mt-8">
-                                    <h4 className="text-xl font-bold text-slate-200 mb-3 flex items-center">
-                                        <LightbulbIcon className="w-5 h-5 mr-2 text-yellow-300" />
-                                        Healthier Alternatives
+                                    <h4 className="text-xl font-bold text-slate-200 mb-3 flex items-center gap-2">
+                                        <LightbulbIcon className="w-5 h-5 shrink-0 text-yellow-300" aria-hidden />
+                                        <span>Healthier Alternatives</span>
                                     </h4>
                                     <ul className="list-disc list-inside space-y-1 text-slate-300 pl-2">
                                         {analysis.alternatives.map((alt, index) => <li key={index}>{alt}</li>)}

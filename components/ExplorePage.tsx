@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { generateExploreRecipes, generateRecipeImage } from '../services/geminiService';
+import React, { useState, useEffect } from 'react';
+import { generateExploreRecipes } from '../services/geminiService';
 import { DailyLogItem, MealPlanPreferences, ExploreCategory, ExploreRecipe } from '../types';
 import { Spinner } from './Spinner';
 import { RecipeInfoModal } from './RecipeInfoModal';
@@ -16,18 +16,18 @@ interface ExplorePageProps {
 }
 
 const RecipeCard: React.FC<{ recipe: ExploreRecipe, onSelect: () => void }> = ({ recipe, onSelect }) => {
+    const imageSrc = recipe.imageUrl
+        ? (recipe.imageUrl.startsWith('http') ? recipe.imageUrl : `data:image/jpeg;base64,${recipe.imageUrl}`)
+        : null;
+
     return (
         <div 
             className="bg-slate-800/50 rounded-lg overflow-hidden group cursor-pointer transform hover:-translate-y-1 transition-transform duration-300 shadow-lg hover:shadow-cyan-500/10"
             onClick={onSelect}
         >
             <div className="relative h-40 bg-slate-700">
-                {recipe.imageIsGenerating ? (
-                    <div className="w-full h-full flex items-center justify-center">
-                        <Spinner />
-                    </div>
-                ) : recipe.imageUrl ? (
-                    <img src={`data:image/jpeg;base64,${recipe.imageUrl}`} alt={recipe.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"/>
+                {imageSrc ? (
+                    <img src={imageSrc} alt={recipe.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"/>
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-slate-500">
                        <FoodIcon className="w-12 h-12" />
@@ -36,7 +36,7 @@ const RecipeCard: React.FC<{ recipe: ExploreRecipe, onSelect: () => void }> = ({
                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
             </div>
             <div className="p-4">
-                <h4 className="font-bold text-slate-100 truncate">{recipe.name}</h4>
+                <h4 className="font-bold text-yellow-300 truncate bg-yellow-500/10 px-2 py-1 rounded-md inline-block max-w-full">{recipe.name}</h4>
                 <p className="text-xs text-slate-400 h-8 overflow-hidden">{recipe.description}</p>
                 <div className="flex justify-between items-center mt-2 text-xs text-slate-300">
                     <span>🔥 {Math.round(recipe.nutrition.calories)} kcal</span>
@@ -55,44 +55,6 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ log, preferences, save
 
     const [selectedRecipe, setSelectedRecipe] = useState<ExploreRecipe | null>(null);
     const [detailedRecipe, setDetailedRecipe] = useState<ExploreRecipe | null>(null);
-
-    const handleGenerateImage = useCallback(async (categoryIndex: number, recipeIndex: number, currentCategories: ExploreCategory[]) => {
-        let recipeToProcess = currentCategories[categoryIndex]?.recipes[recipeIndex];
-        
-        if (!recipeToProcess || recipeToProcess.imageUrl || recipeToProcess.imageIsGenerating) return;
-
-        setCategories(prev => {
-            if (!prev) return null;
-            const newCategories = JSON.parse(JSON.stringify(prev)); // Deep copy to safely mutate
-            newCategories[categoryIndex].recipes[recipeIndex].imageIsGenerating = true;
-            return newCategories;
-        });
-
-        try {
-            const imageBytes = await generateRecipeImage(recipeToProcess.name, recipeToProcess.description);
-            setCategories(prev => {
-                if (!prev) return null;
-                const newCategories = JSON.parse(JSON.stringify(prev));
-                const targetRecipe = newCategories[categoryIndex].recipes[recipeIndex];
-                targetRecipe.imageUrl = imageBytes;
-                targetRecipe.imageIsGenerating = false;
-                
-                // Update local storage cache
-                const today = new Date().toISOString().split('T')[0];
-                localStorage.setItem(`nutrisnap_explore_cache_${today}`, JSON.stringify(newCategories));
-
-                return newCategories;
-            });
-        } catch (err) {
-            console.error(`Failed to generate image for ${recipeToProcess.name}`, err);
-             setCategories(prev => {
-                if (!prev) return null;
-                const newCategories = JSON.parse(JSON.stringify(prev));
-                newCategories[categoryIndex].recipes[recipeIndex].imageIsGenerating = false; // Stop loading on error
-                return newCategories;
-            });
-        }
-    }, []);
 
     useEffect(() => {
         const fetchOrLoadRecipes = async () => {
@@ -125,7 +87,7 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ log, preferences, save
                     ...category,
                     recipes: category.recipes.map(recipe => ({
                         ...recipe,
-                        id: `${category.categoryTitle}-${recipe.name}`.replace(/\s+/g, '-')
+                        id: recipe.id || `${category.categoryTitle}-${recipe.name}`.replace(/\s+/g, '-')
                     }))
                 }));
                 
@@ -138,15 +100,6 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ log, preferences, save
                    console.error("Failed to save to cache", e);
                 }
 
-                // Eagerly load the first image of each category for better UX
-                if (categoriesWithIds.length > 0) {
-                    categoriesWithIds.forEach((category, catIndex) => {
-                        if (category.recipes.length > 0) {
-                            handleGenerateImage(catIndex, 0, categoriesWithIds);
-                        }
-                    });
-                }
-
             } catch (err: any) {
                 setError('Failed to fetch recipe ideas. Please try again later.');
                 soundService.play('stop');
@@ -157,7 +110,7 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ log, preferences, save
         };
 
         fetchOrLoadRecipes();
-    }, [log, preferences, handleGenerateImage]);
+    }, [log, preferences]);
 
     const handleSelectRecipe = (recipe: ExploreRecipe) => {
         setSelectedRecipe(recipe);
@@ -175,7 +128,7 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ log, preferences, save
         return (
             <div className="flex flex-col items-center justify-center space-y-4 py-12 corner-box">
                 <Spinner />
-                <p className="text-slate-300 font-semibold">Generating delicious recipe ideas for you...</p>
+                <p className="text-slate-300 font-semibold">Fetching web-based recipe ideas for you...</p>
             </div>
         );
     }

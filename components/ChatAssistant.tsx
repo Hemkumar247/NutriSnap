@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { marked } from 'marked';
 import type { ChatMessage, ChatContext } from '../types';
-import { BrandLogoIcon, ResetIcon, MicrophoneIcon, MicrophoneOffIcon } from './IconComponents';
+import { ResetIcon, MicrophoneIcon, MicrophoneOffIcon } from './IconComponents';
 import { startLiveConversation } from '../services/geminiService';
 import { createBlob, decode, decodeAudioData } from '../utils/audioUtils';
 import { LiveServerMessage, LiveSession } from '@google/genai';
@@ -219,10 +219,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose, m
       ></div>
       <div className="relative bg-slate-900/70 backdrop-blur-lg border border-cyan-300/20 rounded-2xl shadow-xl w-full max-w-lg h-[90vh] max-h-[700px] flex flex-col m-4 animate-fade-in">
         <header className="flex items-center justify-between p-4 border-b border-cyan-300/20">
-          <div className="flex items-center">
-            <BrandLogoIcon className="h-7 w-7 text-cyan-400 mr-2" />
-            <h2 className="text-lg font-bold text-slate-100">AI Nutrition Assistant</h2>
-          </div>
+          <h2 className="text-lg font-bold text-slate-100">NutriSnap</h2>
           <button 
               onClick={onClose}
               className="p-2 text-slate-400 rounded-full hover:bg-slate-700 hover:text-slate-200 transition-colors"
@@ -235,7 +232,6 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose, m
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.map((msg, index) => (
             <div key={index} className={`flex items-start gap-2.5 ${msg.role === 'user' ? 'justify-end' : ''}`}>
-              {msg.role === 'model' && <BrandLogoIcon className="h-6 w-6 text-cyan-400 flex-shrink-0 mt-1" />}
               <div 
                 className={`max-w-[80%] rounded-xl p-3 text-sm md:text-base shadow-sm
                   ${msg.role === 'user' 
@@ -265,8 +261,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose, m
             </div>
           ))}
           {isLoading && (
-             <div className="flex items-start gap-2.5">
-                <BrandLogoIcon className="h-6 w-6 text-cyan-400 flex-shrink-0 mt-1" />
+             <div className="flex items-start justify-start">
                 <div className="max-w-[80%] rounded-xl p-3 bg-slate-800 text-slate-200 rounded-bl-none">
                     <TypingIndicator />
                 </div>
@@ -281,8 +276,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose, m
             </div>
           )}
           {modelTranscript && (
-            <div className="flex items-start gap-2.5">
-                <BrandLogoIcon className="h-6 w-6 text-cyan-400 flex-shrink-0 mt-1" />
+            <div className="flex items-start justify-start">
                 <div className="max-w-[80%] rounded-xl p-3 bg-slate-800/60 text-slate-300 rounded-bl-none italic">
                     {modelTranscript}
                 </div>

@@ -10,10 +10,10 @@ const MacroBar: React.FC<{ value: number; total: number; color: string; label: s
   const percentage = total > 0 ? (value / total) * 100 : 0;
   return (
     <div>
-      <div className="flex justify-between items-center mb-2">
-        <span className="text-sm font-medium text-slate-400 flex items-center">
-          {icon}
-          <span className="ml-2">{label}</span>
+      <div className="flex justify-between items-center gap-2 mb-2">
+        <span className="text-sm font-medium text-slate-400 flex items-center gap-2 min-w-0">
+          <span className="inline-flex shrink-0">{icon}</span>
+          <span>{label}</span>
         </span>
         <span className="text-sm font-semibold text-slate-200">{Math.round(value)}{unit}</span>
       </div>
@@ -35,7 +35,9 @@ export const NutritionDisplay: React.FC<NutritionDisplayProps> = ({ analysis }) 
       <div className="bg-slate-900/30 border border-cyan-300/20 rounded-xl p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
           <div className="flex flex-col items-center justify-center text-center">
-            <CalorieIcon className="w-10 h-10 text-cyan-400 mb-2"/>
+            <span className="mb-2 inline-flex shrink-0">
+              <CalorieIcon className="h-10 w-10 text-cyan-400" aria-hidden />
+            </span>
             <span className="text-5xl font-extrabold text-slate-100">{Math.round(nutrition.calories)}</span>
             <span className="text-slate-400 font-medium">Calories</span>
           </div>

@@ -11,9 +11,9 @@ interface RecipeInfoModalProps {
     onUnsave: () => void;
 }
 
-const NutritionStat: React.FC<{ label: string, value: number, unit: string, icon: React.ReactElement }> = ({ label, value, unit, icon }) => (
+const NutritionStat: React.FC<{ label: string, value: number, unit: string, icon: React.ReactNode }> = ({ label, value, unit, icon }) => (
     <div className="flex items-center space-x-2 bg-slate-800/50 p-2 rounded-lg">
-        {React.cloneElement(icon, { className: 'w-5 h-5' })}
+        {icon}
         <div>
             <p className="text-sm font-bold text-slate-100">{Math.round(value)}{unit}</p>
             <p className="text-xs text-slate-400">{label}</p>
@@ -40,6 +40,10 @@ export const RecipeInfoModal: React.FC<RecipeInfoModalProps> = ({ recipe, onClos
         }
     }
 
+    const imageSrc = recipe.imageUrl
+        ? (recipe.imageUrl.startsWith('http') ? recipe.imageUrl : `data:image/jpeg;base64,${recipe.imageUrl}`)
+        : null;
+
     return (
         <div 
             className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
@@ -50,8 +54,8 @@ export const RecipeInfoModal: React.FC<RecipeInfoModalProps> = ({ recipe, onClos
                 onClick={e => e.stopPropagation()}
             >
                 <div className="relative h-64 md:h-80 w-full">
-                     {recipe.imageUrl ? (
-                        <img src={`data:image/jpeg;base64,${recipe.imageUrl}`} alt={recipe.name} className="w-full h-full object-cover" />
+                     {imageSrc ? (
+                        <img src={imageSrc} alt={recipe.name} className="w-full h-full object-cover" />
                     ) : (
                         <div className="w-full h-full bg-slate-800 flex items-center justify-center text-slate-500">
                              <FoodIcon className="w-16 h-16"/>
@@ -66,7 +70,7 @@ export const RecipeInfoModal: React.FC<RecipeInfoModalProps> = ({ recipe, onClos
                         <ResetIcon className="w-5 h-5" />
                     </button>
                     <div className="absolute bottom-6 left-6 right-6">
-                        <h2 className="text-3xl md:text-4xl font-extrabold text-white">{recipe.name}</h2>
+                        <h2 className="text-3xl md:text-4xl font-extrabold text-yellow-300 inline-block bg-yellow-500/15 px-3 py-1 rounded-lg">{recipe.name}</h2>
                     </div>
                 </div>
 

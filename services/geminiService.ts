@@ -368,72 +368,28 @@ export const generateMealPlan = async (
 export const generateExploreRecipes = async (
     context: { log: { foodName: string }[], prefs: MealPlanPreferences | null }
 ): Promise<ExploreCategory[]> => {
-    
-    const recentFoods = context.log.slice(0, 5).map(i => i.foodName).join(', ') || 'none';
-    const favFoods = context.prefs ? `${context.prefs.favBreakfast}, ${context.prefs.favLunch}, ${context.prefs.favDinner}` : 'none';
-
-    const prompt = `You are a creative chef and nutritionist. Generate a list of exciting and healthy recipes for a user to explore.
-
-    **User Context:**
-    - Recently logged foods: ${recentFoods}
-    - Favorite meal types: ${favFoods}
-    - Dietary preference: ${context.prefs?.isVegetarian ? 'Vegetarian' : 'Omnivore'}
-
-    **Task:**
-    1.  Create 3-4 diverse and appealing recipe categories. One category should be personalized based on the user's context (e.g., "Because you like ${recentFoods.split(',')[0]}..."). Other categories could be based on meal types, dietary goals, or cooking styles (e.g., "High-Protein Lunches", "Quick Vegetarian Dinners", "Healthy Snacks").
-    2.  For each category, generate 4-5 unique recipes.
-    3.  For each recipe, provide:
-        - A creative and appealing name.
-        - A short, enticing one-sentence description.
-        - Estimated nutrition (calories, protein, carbs, fat).
-        - A list of ingredients with quantities.
-        - Step-by-step cooking instructions.
-
-    Return the result in the specified JSON format. Ensure the content is varied and high-quality.
-    `;
-
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-pro',
-        contents: { parts: [{ text: prompt }] },
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: exploreRecipesSchema
-        }
+    const response = await fetch('/api/explore', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ context }),
     });
 
-    const jsonString = response.text;
-    try {
-        const result = JSON.parse(jsonString);
-        if (result.recipeCategories && Array.isArray(result.recipeCategories)) {
-            return result.recipeCategories as ExploreCategory[];
-        } else {
-            throw new Error("Invalid JSON structure for explore recipes from API");
-        }
-    } catch (e) {
-        console.error("Failed to parse JSON response for explore recipes:", e);
-        console.error("Received string:", jsonString);
-        throw new Error("Could not parse the explore recipes from the AI.");
+    if (!response.ok) {
+        throw new Error('Failed to fetch explore recipes from web source.');
     }
+
+    const data = await response.json();
+    if (!data?.recipeCategories || !Array.isArray(data.recipeCategories)) {
+        throw new Error('Invalid explore recipes response.');
+    }
+
+    return data.recipeCategories as ExploreCategory[];
 };
 
 export const generateRecipeImage = async (recipeName: string, recipeDescription: string): Promise<string> => {
-    const prompt = `A photorealistic, delicious-looking image of "${recipeName}". ${recipeDescription}. Presented on a modern ceramic plate, with a slightly blurred, elegant background. Professional food photography style, vibrant colors, and sharp focus.`;
-    
-    const response = await ai.models.generateImages({
-        model: 'imagen-4.0-generate-001',
-        prompt: prompt,
-        config: {
-          numberOfImages: 1,
-          outputMimeType: 'image/jpeg',
-          aspectRatio: '4:3',
-        },
-    });
-
-    const base64ImageBytes = response.generatedImages[0]?.image.imageBytes;
-    if (!base64ImageBytes) {
-        throw new Error("Image generation failed or returned no data.");
-    }
-    return base64ImageBytes;
+    throw new Error(`Image generation disabled. Use web image URL for ${recipeName}: ${recipeDescription}`);
 };
 
 
@@ -442,7 +398,7 @@ export const getChatResponse = async (
     context: ChatContext
 ): Promise<{ text: string; sources: GroundingSource[] }> => {
 
-    const systemInstruction = `You are the Eat Well AI, a friendly and knowledgeable nutrition assistant. 
+    const systemInstruction = `You are the NutriSnap AI, a friendly and knowledgeable nutrition assistant. 
     Your goal is to help users understand their diet, achieve their health goals, and make better food choices.
     Use the provided context about the user's daily log, goals, and totals to give personalized advice.
     Be supportive, encouraging, and provide actionable tips.
@@ -487,7 +443,7 @@ export const startLiveConversation = (callbacks: {
     onClose: (event: CloseEvent) => void,
 }, context: ChatContext): Promise<LiveSession> => {
 
-    const systemInstruction = `You are the Eat Well AI, a friendly and knowledgeable nutrition assistant. 
+    const systemInstruction = `You are the NutriSnap AI, a friendly and knowledgeable nutrition assistant. 
     Your goal is to help users understand their diet, achieve their health goals, and make better food choices.
     Use the provided context about the user's daily log, goals, and totals to give personalized, conversational advice.
     Be supportive and encouraging. Keep your spoken responses concise and natural.

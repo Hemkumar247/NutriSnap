@@ -85,7 +85,7 @@ export interface ExploreRecipe {
   nutrition: NutritionInfo;
   ingredients: string[];
   instructions: string[];
-  imageUrl?: string; // Base64 string from image generation model
+  imageUrl?: string; // Web URL or Base64 image string
   imageIsGenerating?: boolean;
 }
 

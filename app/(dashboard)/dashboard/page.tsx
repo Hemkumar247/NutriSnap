@@ -1,1 +1,7 @@
-// Placeholder — main dashboard (wraps existing App.tsx logic)
+'use client';
+
+import App from '@/App';
+
+export default function DashboardPage() {
+  return <App />;
+}
