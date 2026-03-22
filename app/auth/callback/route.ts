@@ -1,6 +1,7 @@
-// Placeholder — Supabase OAuth callback
 import { NextResponse } from 'next/server';
 
 export async function GET() {
-  return NextResponse.json({ error: 'Not implemented' }, { status: 501 });
+  // Safe fallback to dashboard if callback is hit (Firebase popup handles tokens client-side)
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  return NextResponse.redirect(new URL('/dashboard', appUrl));
 }

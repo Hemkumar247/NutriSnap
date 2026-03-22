@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { generateExploreRecipes } from '../services/geminiService';
+import { generateExploreRecipes } from '../services/apiClient';
 import { DailyLogItem, MealPlanPreferences, ExploreCategory, ExploreRecipe } from '../types';
 import { Spinner } from './Spinner';
 import { RecipeInfoModal } from './RecipeInfoModal';
 import { RecipeDetailModal } from './RecipeDetailModal';
-import { BrainIcon, FoodIcon } from './IconComponents';
+import { BrainIcon, FoodIcon, ResetIcon } from './IconComponents';
 import { soundService } from '../services/soundService';
 
 interface ExplorePageProps {
@@ -22,25 +22,33 @@ const RecipeCard: React.FC<{ recipe: ExploreRecipe, onSelect: () => void }> = ({
 
     return (
         <div 
-            className="bg-slate-800/50 rounded-lg overflow-hidden group cursor-pointer transform hover:-translate-y-1 transition-transform duration-300 shadow-lg hover:shadow-cyan-500/10"
+            className="group relative bg-slate-800/40 rounded-3xl overflow-hidden cursor-pointer transform hover:-translate-y-2 transition-all duration-500 shadow-xl hover:shadow-cyan-500/10 border border-white/5"
             onClick={onSelect}
         >
-            <div className="relative h-40 bg-slate-700">
+            <div className="relative h-48 bg-slate-900">
                 {imageSrc ? (
-                    <img src={imageSrc} alt={recipe.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"/>
+                    <img src={imageSrc} alt={recipe.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"/>
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center text-slate-500">
+                    <div className="w-full h-full flex items-center justify-center text-slate-700">
                        <FoodIcon className="w-12 h-12" />
                     </div>
                 )}
-                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent"></div>
+                 <div className="absolute bottom-4 left-4 right-4">
+                    <h4 className="font-extrabold text-white text-lg tracking-tight drop-shadow-lg leading-tight">
+                        <span className="bg-yellow-400 text-slate-950 px-2 py-0.5 rounded-lg shadow-sm inline-block">{recipe.name}</span>
+                    </h4>
+                 </div>
             </div>
-            <div className="p-4">
-                <h4 className="font-bold text-yellow-300 truncate bg-yellow-500/10 px-2 py-1 rounded-md inline-block max-w-full">{recipe.name}</h4>
-                <p className="text-xs text-slate-400 h-8 overflow-hidden">{recipe.description}</p>
-                <div className="flex justify-between items-center mt-2 text-xs text-slate-300">
-                    <span>🔥 {Math.round(recipe.nutrition.calories)} kcal</span>
-                    <span>💪 {Math.round(recipe.nutrition.protein)}g P</span>
+            <div className="p-5 bg-slate-800/60 border-t border-white/5 backdrop-blur-sm">
+                <p className="text-[11px] text-slate-400 h-10 overflow-hidden line-clamp-2 italic mb-4 leading-relaxed line-clamp-2 opacity-80">"{recipe.description}"</p>
+                <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-[0.1em]">
+                    <span className="flex items-center gap-1.5 text-cyan-400 bg-cyan-950/30 px-2 py-1.5 rounded-xl border border-cyan-500/10">
+                      <span className="text-xs">🔥</span> {Math.round(recipe.nutrition.calories)}
+                    </span>
+                    <span className="flex items-center gap-1.5 text-pink-400 bg-pink-950/30 px-2 py-1.5 rounded-xl border border-pink-500/10">
+                      <span className="text-xs">💪</span> {Math.round(recipe.nutrition.protein)}g 
+                    </span>
                 </div>
             </div>
         </div>
@@ -56,61 +64,54 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ log, preferences, save
     const [selectedRecipe, setSelectedRecipe] = useState<ExploreRecipe | null>(null);
     const [detailedRecipe, setDetailedRecipe] = useState<ExploreRecipe | null>(null);
 
-    useEffect(() => {
-        const fetchOrLoadRecipes = async () => {
+    const fetchRecipes = async () => {
+        setIsLoading(true);
+        setError(null);
+        soundService.play('start');
+        try {
+            const context = {
+                log: log.map(({ foodName }) => ({ foodName })),
+                prefs: preferences
+            };
+            const results = await generateExploreRecipes(context);
+            
+            const categoriesWithIds = results.map(category => ({
+                ...category,
+                recipes: category.recipes.map(recipe => ({
+                    ...recipe,
+                    id: recipe.id || `${category.categoryTitle}-${recipe.name}`.replace(/\s+/g, '-')
+                }))
+            }));
+            
+            setCategories(categoriesWithIds);
+            soundService.play('success');
+            
             const today = new Date().toISOString().split('T')[0];
             const cacheKey = `nutrisnap_explore_cache_${today}`;
-            
-            try {
-                const cachedData = localStorage.getItem(cacheKey);
-                if (cachedData) {
-                    setCategories(JSON.parse(cachedData));
-                    setIsLoading(false);
-                    return;
-                }
-            } catch (e) {
-                console.error("Failed to read from cache", e);
-            }
+            localStorage.setItem(cacheKey, JSON.stringify(categoriesWithIds));
 
+        } catch (err: any) {
+            setError('Failed to fetch recipe ideas from web sources. Please check your connection.');
+            soundService.play('stop');
+            console.error(err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-            setIsLoading(true);
-            setError(null);
-            soundService.play('start');
-            try {
-                const context = {
-                    log: log.map(({ foodName }) => ({ foodName })),
-                    prefs: preferences
-                };
-                const results = await generateExploreRecipes(context);
-                
-                const categoriesWithIds = results.map(category => ({
-                    ...category,
-                    recipes: category.recipes.map(recipe => ({
-                        ...recipe,
-                        id: recipe.id || `${category.categoryTitle}-${recipe.name}`.replace(/\s+/g, '-')
-                    }))
-                }));
-                
-                setCategories(categoriesWithIds);
-                soundService.play('success');
-                
-                try {
-                   localStorage.setItem(cacheKey, JSON.stringify(categoriesWithIds));
-                } catch (e) {
-                   console.error("Failed to save to cache", e);
-                }
-
-            } catch (err: any) {
-                setError('Failed to fetch recipe ideas. Please try again later.');
-                soundService.play('stop');
-                console.error(err);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchOrLoadRecipes();
+    useEffect(() => {
+        const today = new Date().toISOString().split('T')[0];
+        const cacheKey = `nutrisnap_explore_cache_${today}`;
+        const cachedData = localStorage.getItem(cacheKey);
+        
+        if (cachedData) {
+            setCategories(JSON.parse(cachedData));
+            setIsLoading(false);
+        } else {
+            fetchRecipes();
+        }
     }, [log, preferences]);
+
 
     const handleSelectRecipe = (recipe: ExploreRecipe) => {
         setSelectedRecipe(recipe);
@@ -123,54 +124,55 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ log, preferences, save
             setSelectedRecipe(null);
         }
     };
-    
-    if (isLoading) {
-        return (
-            <div className="flex flex-col items-center justify-center space-y-4 py-12 corner-box">
-                <Spinner />
-                <p className="text-slate-300 font-semibold">Fetching web-based recipe ideas for you...</p>
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="corner-box text-center py-8">
-                <p className="text-red-400 mb-4 bg-red-900/30 p-3 rounded-lg">{error}</p>
-            </div>
-        );
-    }
-    
-     if (!categories || categories.length === 0) {
-        return (
-            <div className="corner-box text-center py-12">
-                <BrainIcon className="w-12 h-12 text-cyan-400 mx-auto mb-4"/>
-                <h2 className="text-2xl font-bold text-slate-100 mb-2">No Recipes Found</h2>
-                <p className="text-slate-400">We couldn't generate any recipes right now. Try again in a bit!</p>
-            </div>
-        );
-    }
 
     return (
-        <div className="space-y-8 animate-fade-in">
-            {categories.map((category, catIndex) => (
-                <div key={category.categoryTitle}>
-                    <h2 className="text-2xl font-bold text-cyan-300 mb-4">{category.categoryTitle}</h2>
-                     <div className="relative">
-                        <div className="flex space-x-6 overflow-x-auto pb-4 scrollbar-hide">
-                            {category.recipes.map((recipe, recipeIndex) => (
-                                <div className="flex-shrink-0 w-64" key={recipe.id}>
-                                    <RecipeCard 
-                                        recipe={recipe} 
-                                        onSelect={() => handleSelectRecipe(recipe)}
-                                    />
-                                </div>
-                            ))}
-                             <div className="flex-shrink-0 w-1"></div>
-                        </div>
-                    </div>
+        <div className="space-y-12 animate-fade-in -mt-4 pb-12">
+            
+            {isLoading ? (
+                <div className="flex flex-col items-center justify-center space-y-6 py-24 bg-slate-800/20 rounded-[3rem] border-2 border-dashed border-slate-800">
+                    <Spinner />
+                    <p className="text-slate-500 font-black uppercase tracking-widest text-xs">Scanning the web...</p>
                 </div>
-            ))}
+            ) : error ? (
+                <div className="bg-red-500/5 text-center py-12 rounded-[2rem] border border-red-500/20">
+                    <p className="text-red-400 mb-6 font-bold">{error}</p>
+                    <button onClick={() => fetchRecipes()} className="bg-red-500/20 hover:bg-red-500/30 text-red-400 px-6 py-2 rounded-full font-black text-xs uppercase tracking-widest transition-all">Retry Loading</button>
+                </div>
+            ) : (!categories || categories.length === 0) ? (
+                <div className="text-center py-24 bg-slate-800/10 rounded-[3rem]">
+                    <div className="w-20 h-20 bg-slate-800 flex items-center justify-center rounded-3xl mx-auto mb-6">
+                        <BrainIcon className="w-10 h-10 text-slate-600"/>
+                    </div>
+                    <h2 className="text-2xl font-black text-slate-200 mb-2 tracking-tight">Zero Results</h2>
+                    <p className="text-slate-500 max-w-xs mx-auto text-sm italic">"Try searching for something like 'Mediterranean Salad' or 'High Protein Pasta'."</p>
+                </div>
+            ) : (
+                <div className="space-y-16">
+                     {categories.map((category, catIndex) => (
+                        <div key={category.categoryTitle} className="animate-fade-in-up" style={{ animationDelay: `${catIndex * 150}ms` }}>
+                            <div className="flex items-center justify-between mb-8 px-2">
+                                <div className="flex items-center gap-4">
+                                    <div className="h-10 w-1.5 bg-cyan-500 rounded-full shadow-[0_0_15px_rgba(34,211,238,0.5)]"></div>
+                                    <h2 className="text-3xl font-black text-white tracking-tight">{category.categoryTitle}</h2>
+                                </div>
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{category.recipes.length} Results</span>
+                            </div>
+                            <div className="relative">
+                                <div className="flex space-x-8 overflow-x-auto pb-8 scrollbar-hide px-2">
+                                    {category.recipes.map((recipe, recipeIndex) => (
+                                        <div className="flex-shrink-0 w-80" key={recipe.id}>
+                                            <RecipeCard 
+                                                recipe={recipe} 
+                                                onSelect={() => handleSelectRecipe(recipe)}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                     ))}
+                </div>
+            )}
 
             {selectedRecipe && (
                 <RecipeInfoModal 

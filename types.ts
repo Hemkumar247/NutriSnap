@@ -1,4 +1,3 @@
-import { LiveServerMessage, LiveSession } from "@google/genai";
 
 export interface NutritionInfo {
   calories: number;
@@ -28,24 +27,6 @@ export interface DailyLogItem extends AnalysisResult {
   imageUrl?: string;
 }
 
-export interface GroundingSource {
-  uri: string;
-  title: string;
-}
-
-export interface ChatMessage {
-  role: 'user' | 'model';
-  content: string;
-  sources?: GroundingSource[];
-}
-
-export interface ChatContext {
-  goals: NutritionInfo;
-  totals: NutritionInfo;
-  log: DailyLogItem[];
-  waterIntake: number;
-  waterGoal: number;
-}
 
 export interface MealPlanPreferences {
   favBreakfast: string;

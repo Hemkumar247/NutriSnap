@@ -3,13 +3,11 @@ import { SideMenu } from './components/SideMenu';
 import { ImageUploader } from './components/ImageUploader';
 import { NutritionDisplay } from './components/NutritionDisplay';
 import { DailyTracker } from './components/DailyTracker';
-import { analyzeMeal, analyzeMealFromText, getChatResponse } from './services/geminiService';
-import type { AnalysisResult, DailyLogItem, NutritionInfo, ChatMessage, ChatContext, AppView, MealPlanPreferences, MealPlan, ExploreRecipe, UserProfile, AppSettings } from './types';
+import { analyzeMeal, analyzeMealFromText } from '@/services/apiClient';
+import type { AnalysisResult, DailyLogItem, NutritionInfo, AppView, MealPlanPreferences, MealPlan, ExploreRecipe, UserProfile, AppSettings } from './types';
 import { Spinner } from './components/Spinner';
 import { ResetIcon, LightbulbIcon } from './components/IconComponents';
 import { EditLogModal } from './components/EditLogModal';
-import { ChatButton } from './components/ChatButton';
-import { ChatAssistant } from './components/ChatAssistant';
 import { HistoryModal } from './components/HistoryModal';
 import { AddMealModal } from './components/AddMealModal';
 import { WeeklyReportModal } from './components/WeeklyReportModal';
@@ -70,12 +68,6 @@ const App: React.FC = () => {
   const [waterIntake, setWaterIntake] = useState<number>(0);
   const [waterGoal, setWaterGoal] = useState<number>(2500); // Default 2.5L
 
-  // Chat state
-  const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
-    { role: 'model', content: "Hello! I'm NutriSnap. How can I help you with your nutrition today? Ask me about your goals, logged meals, or for meal ideas!" }
-  ]);
-  const [isChatLoading, setIsChatLoading] = useState<boolean>(false);
   
   // Modal States
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
@@ -98,7 +90,7 @@ const App: React.FC = () => {
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
 
 
-  // Load data from localStorage on initial render
+  const isInitialLoad = useRef(true);
   useEffect(() => {
     try {
       // Load Food Log
@@ -161,51 +153,42 @@ const App: React.FC = () => {
       if (savedSettings) {
         setAppSettings(JSON.parse(savedSettings));
       }
-
+      
     } catch (e) {
       console.error("Failed to load data from localStorage", e);
+    } finally {
+      isInitialLoad.current = false;
     }
   }, []);
 
-  // Save data to localStorage whenever it changes
   useEffect(() => {
-    try {
+    if (!isInitialLoad.current) {
+        localStorage.setItem('nutrisnap_saved_recipes', JSON.stringify(savedRecipes));
+    }
+  }, [savedRecipes]);
+
+  useEffect(() => {
+    if (!isInitialLoad.current) {
       localStorage.setItem('nutrisnap_log', JSON.stringify(dailyLog));
-    } catch (e) {
-      console.error("Failed to save log to localStorage", e);
     }
   }, [dailyLog]);
 
   useEffect(() => {
-    try {
+    if (!isInitialLoad.current) {
       const waterData = {
         intake: waterIntake,
         goal: waterGoal,
         date: new Date().toISOString().split('T')[0]
       };
       localStorage.setItem('nutrisnap_water', JSON.stringify(waterData));
-    } catch (e) {
-      console.error("Failed to save water intake to localStorage", e);
     }
   }, [waterIntake, waterGoal]);
 
   useEffect(() => {
-    try {
-      if (mealPlanPreferences) {
-        localStorage.setItem('nutrisnap_meal_prefs', JSON.stringify(mealPlanPreferences));
-      }
-    } catch (e) {
-      console.error("Failed to save meal preferences to localStorage", e);
+    if (!isInitialLoad.current && mealPlanPreferences) {
+      localStorage.setItem('nutrisnap_meal_prefs', JSON.stringify(mealPlanPreferences));
     }
   }, [mealPlanPreferences]);
-
-  useEffect(() => {
-    try {
-        localStorage.setItem('nutrisnap_saved_recipes', JSON.stringify(savedRecipes));
-    } catch (e) {
-        console.error("Failed to save recipes to localStorage", e);
-    }
-  }, [savedRecipes]);
 
   useEffect(() => {
     try {
@@ -391,39 +374,6 @@ const App: React.FC = () => {
     soundService.play('success');
   };
   
-  const chatContext: ChatContext = useMemo(() => ({
-    goals: dailyGoals,
-    totals: totals,
-    log: dailyLog,
-    waterIntake,
-    waterGoal
-  }), [dailyGoals, totals, dailyLog, waterIntake, waterGoal]);
-
-
-  const handleSendMessage = useCallback(async (message: string) => {
-    setChatHistory(prev => [...prev, { role: 'user', content: message }]);
-    setIsChatLoading(true);
-
-    try {
-      const { text, sources } = await getChatResponse(message, chatContext);
-      setChatHistory(prev => [...prev, { role: 'model', content: text, sources }]);
-      soundService.play('received');
-    } catch (err) {
-      setChatHistory(prev => [...prev, { role: 'model', content: "Sorry, I encountered an error. Please try again." }]);
-      soundService.play('stop');
-    } finally {
-      setIsChatLoading(false);
-    }
-  }, [chatContext]);
-
-  const handleAddLiveChatTurn = useCallback((userMessage: string, modelMessage: string) => {
-    if (!userMessage && !modelMessage) return;
-    const newMessages: ChatMessage[] = [];
-    if (userMessage) newMessages.push({ role: 'user', content: userMessage });
-    if (modelMessage) newMessages.push({ role: 'model', content: modelMessage });
-    
-    setChatHistory(prev => [...prev, ...newMessages]);
-  }, []);
   
   const handleViewChange = (view: AppView) => {
     setActiveView(view);
@@ -816,25 +766,6 @@ const App: React.FC = () => {
         message="This action is irreversible. All your logged meals, goals, and preferences will be permanently deleted."
       />
 
-      {/* Floating Action Button for Chat */}
-      <ChatButton onClick={() => {
-        setIsChatOpen(true);
-        soundService.play('start');
-      }} />
-
-      {/* Chat Assistant Modal */}
-      <ChatAssistant 
-        isOpen={isChatOpen}
-        onClose={() => {
-            setIsChatOpen(false);
-            soundService.play('stop');
-        }}
-        messages={chatHistory}
-        onSendMessage={handleSendMessage}
-        onAddLiveTurn={handleAddLiveChatTurn}
-        isLoading={isChatLoading}
-        chatContext={chatContext}
-      />
     </div>
   );
 };

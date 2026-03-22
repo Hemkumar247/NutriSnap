@@ -1,0 +1,94 @@
+# .cursorrules — NutriSnap (Firebase Edition)
+
+## Project Identity
+You are building NutriSnap, a wellness app that uses Google Gemini for food image and text meal analysis.
+The stack is Next.js 14 App Router (React), with Firebase for Auth (session cookies), 
+Firestore for the database, and Cloud Storage for photos.
+
+## Core Stack
+- **Database:** Firebase Cloud Firestore (NoSQL, collection per user)
+- **Auth:** Firebase Auth with server-side session cookies (via `POST /api/auth/session`)
+- **Storage:** Cloud Storage for Firebase (`food-images` bucket)
+- **AI:** `@google/genai` (Gemini 2.5 Pro/Flash, Imagen 4.0, Live Audio)
+- **Framework:** Next.js 14 App Router (Node.js 20)
+- **Logic:** `firebase-admin` for server-side auth/admin tasks
+
+## Absolute Rules (Never Break These)
+
+- **NEVER put `GEMINI_API_KEY` in any client-side file.** It must only appear in `lib/geminiServer.ts` and API routes.
+- **NEVER put `FIREBASE_ADMIN_PRIVATE_KEY` in any client-side file.** This must remain server-side only.
+- **NEVER import `firebase-admin` in any client-side file.** This will cause an immediate build error.
+- **NEVER use `localStorage` or `sessionStorage`.** Use Firestore via `services/dbService.ts`.
+- **NEVER use standard HTML `<form>` submits.** Always use `onClick` + state for interactions.
+- **NEVER hardcode IDs or Keys.** Use environment variables or `auth.currentUser.uid`.
+- **NEVER skip `requireAuth`.** Every API route MUST verify the session cookie first.
+
+## Code Style Rules
+
+- **Client Reads:** Data loading in components must use `useEffect` + `dbService.ts`.
+- **Server Writes:** API routes and server actions must use `firebase-admin`.
+- **Error Handling:** All Firebase calls must handle potential errors/rejects. Use `try/catch`.
+- **Parallelism:** Use `Promise.all()` when reading multiple Firestore documents at once.
+- **Types:** Strictly type all Firebase document objects using the existing project types.
+
+## Naming Conventions
+- Variables/Functions: `camelCase`
+- Components: `PascalCase`
+- Files: `camelCase.ts` or `PascalCase.tsx`
+- API routes: `kebab-case` folder structure
+
+## Key Functions (Maintain signatures)
+- `requireAuth(request)`: returns `userId` from session cookie.
+- `checkRateLimit(userId)`: returns `{ allowed: boolean, remaining: number }` using Firestore transactions.
+- `dbService.getTodayLog(userId)`: returns `DailyLogItem[]`.
+- `storageService.uploadFoodImage(userId, file)`: returns the public download URL.
+
+## API Route Pattern
+```typescript
+// app/api/[endpoint]/route.ts
+import { requireAuth } from '@/lib/authMiddleware';
+import { checkRateLimit } from '@/lib/rateLimiter';
+
+export async function POST(request: NextRequest) {
+  try {
+    const userId = await requireAuth(request);
+    const { allowed } = await checkRateLimit(userId);
+    if (!allowed) return NextResponse.json({ error: 'Rate limit' }, { status: 429 });
+    
+    // Logic...
+    return NextResponse.json(result);
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
+  }
+}
+```
+
+## dbService Pattern
+Use the Firebase Client SDK for reading/writing under the `/users/{userId}/...` path.
+```typescript
+// services/dbService.ts
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { db } from '@/lib/firebase/client';
+
+export async function getTodayLog(userId: string) {
+  const q = query(
+    collection(db, 'users', userId, 'food_logs'),
+    where('mealDate', '==', today),
+    orderBy('loggedAt', 'desc')
+  );
+  // ...
+}
+```
+
+## What NOT To Do
+- Do NOT use @supabase/supabase-js. It is removed.
+- Do NOT use `const supabase = createClient()`.
+- Do NOT create new UI components; the existing ones are functionally complete.
+- Do NOT use `firebase-admin` in `services/dbService.ts` unless it's for a server action.
+- Do NOT use plain `response.json()` without status codes in error cases.
+
+## Reference Files
+- `schema.md` — Firestore collection paths and structures
+- `technical-spec.md` — Architecture and auth session flow
+- `CURSOR-PROMPTS.md` — The migration implementation order
+- `.env.example` — Required Firebase configuration variables
